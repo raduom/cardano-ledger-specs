@@ -9,6 +9,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 
 module Shelley.Spec.Ledger.Tx
@@ -29,6 +30,15 @@ module Shelley.Spec.Ledger.Tx
   , Wits(..)
   , decodeWits
   , segwitTx
+  , txUpdate
+  , inputs
+  , outputs
+  , certs
+  , wdrls
+  , txfee
+  , ttl
+  , body
+  , metadata
     -- witness data
   , WitVKey(..)
   , MultiSignatureScript
@@ -55,6 +65,15 @@ import           Cardano.Prelude (AllowThunksIn (..), LByteString, NoUnexpectedT
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Foldable (fold)
 import           Data.Map.Strict (Map)
+=======
+import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR), decodeWord,
+                     encodeListLen, encodeWord, encodeMapLen, decodeListLenOf)
+import           Cardano.Crypto.Hash (hashWithSerialiser)
+import           Cardano.Ledger.Shelley.Crypto
+import           Cardano.Prelude (NoUnexpectedThunks (..))
+import qualified Data.List as List (concat, concatMap, permutations)
+import           Data.Map.Strict (Map, insert, empty)
+>>>>>>> changes from branch 2
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (mapMaybe)
 import           Data.Set (Set)
@@ -62,12 +81,20 @@ import qualified Data.Set as Set
 import           GHC.Generics (Generic)
 import           Shelley.Spec.Ledger.Crypto
 import           Shelley.Spec.Ledger.MetaData (MetaData)
-
 import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Serialization (decodeList, decodeMapContents, decodeMaybe,
                      decodeRecordNamed, encodeFoldable)
-import           Shelley.Spec.Ledger.TxData (Credential (..), TxBody (..), TxId (..), TxIn (..),
-                     TxOut (..), WitVKey (..), witKeyHash)
+import           Shelley.Spec.Ledger.TxData (Credential (..), TxBody (..),
+                     TxId (..), TxIn (..), TxOut (..), WitVKey (..), TxWitness (..), certs, inputs,
+                     outputs, ttl, txUpdate, txfee, wdrls, witKeyHash)
+
+-- |A fully formed transaction.
+data Tx crypto
+  = Tx
+      { _body           :: !(TxBody crypto)
+      , _txwits         :: TxWitness crypto
+      , _metadata       :: Maybe MetaData
+      , _valtag         :: IsValidating
 
 -- |A fully formed transaction.
 data Tx crypto
@@ -197,6 +224,22 @@ instance Crypto crypto => FromCBOR (Annotator (Tx crypto)) where
           <*> witsAnn
           <*> metaAnn
 
+--   toCBOR tx =
+--     encodeListLen 4
+--       <> toCBOR (_body tx)
+--       <> toCBOR (_txwits tx)
+--       <> toCBOR (_metadata tx)
+--       <> toCBOR (_valtag tx)
+--
+-- instance Crypto crypto => FromCBOR (Tx crypto) where
+--   fromCBOR = do
+--        enforceSize "Tx" 4
+--        bod <- fromCBOR
+--        wts <- fromCBOR
+--        md <- fromCBOR
+--        vt <- fromCBOR
+--        pure $ Tx bod wts md vt
+
 -- | Typeclass for multis-signature script data types. Allows for script
 -- validation and hashing.
 class (Crypto crypto, ToCBOR a) =>
@@ -232,15 +275,17 @@ validateNativeMultiSigScript
   -> Bool
 validateNativeMultiSigScript msig tx =
   evalNativeMultiSigScript msig vhks
-  where witsSet = _witnessVKeySet tx
+  where witsSet = _witnessVKeySet $ _txwits tx
         vhks    = Set.map witKeyHash witsSet
 
 
--- | Multi-signature script witness accessor function for Transactions
+
+-- | script witness accessor function for Transactions
 txwitsScript
-  :: Crypto crypto => Tx crypto
-  -> Map (ScriptHash crypto) (MultiSig crypto)
-txwitsScript = _witnessMSigMap
+  :: Crypto crypto
+  => Tx crypto
+  -> Map (ScriptHash crypto) (Script crypto)
+txwitsScript tx = Set.foldl (\m a -> Map.insert (ScriptHash $ hash a) a m) Map.empty (_scripts $ _txwits tx)
 
 extractKeyHash
   :: [Credential crypto]

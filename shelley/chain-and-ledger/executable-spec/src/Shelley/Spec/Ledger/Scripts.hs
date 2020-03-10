@@ -10,17 +10,47 @@
 module Shelley.Spec.Ledger.Scripts
   where
 
-import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR), decodeListLen, decodeWord,
-                     encodeListLen, encodeWord, encodeWord8, matchSize)
+
+import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR), decodeWord,
+                     encodeListLen, encodeWord, encodeWord8, matchSize, decodeListLen)
+import           Shelley.Spec.Ledger.Serialization (decodeList, encodeFoldable)
 import           Cardano.Crypto.Hash (hashWithSerialiser)
 import           Cardano.Prelude (Generic, NoUnexpectedThunks (..))
 import qualified Data.List as List (concat, concatMap, permutations)
+import           Cardano.Prelude (Generic, NoUnexpectedThunks(..))
+import           Cardano.Ledger.Shelley.Crypto (Crypto(..), HASH)
+
 import           Data.Word (Word8)
 import           Shelley.Spec.Ledger.BaseTypes (invalidKey)
 import           Shelley.Spec.Ledger.Crypto (Crypto (..), HASH)
 import           Shelley.Spec.Ledger.Keys (AnyKeyHash, pattern AnyKeyHash, Hash)
 import           Shelley.Spec.Ledger.Serialization (decodeList, encodeFoldable)
 
+import           Shelley.Spec.Ledger.CostModel
+
+-- | Tag
+data IsThing = Yes | Nope
+  deriving (Show, Eq, Generic, Ord)
+
+instance NoUnexpectedThunks IsThing
+
+-- | Validation tag
+newtype IsValidating = IsValidating IsThing
+  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord, ToCBOR, FromCBOR)
+
+-- | For-fee tag
+newtype IsFee = IsFee IsThing
+  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord, ToCBOR, FromCBOR)
+
+-- | has datavalue tag
+newtype HasDV = HasDV IsThing
+  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord, ToCBOR, FromCBOR)
+
+-- STAND-IN things!!
+-- temp plc script! Use these from Plutus
+-- TODO make this right type from Plutus
+newtype ScriptPLC = ScriptPLC Integer
+  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord, ToCBOR)
 
 -- | Magic number representing the tag of the native multi-signature script
 -- language. For each script language included, a new tag is chosen and the tag
@@ -28,6 +58,11 @@ import           Shelley.Spec.Ledger.Serialization (decodeList, encodeFoldable)
 nativeMultiSigTag :: Word8
 nativeMultiSigTag = 0
 
+-- | Magic number representing the tag of the native multi-signature script
+-- language. For each script language included, a new tag is chosen and the tag
+-- is included in the script hash for a script.
+plcV1 :: Word8
+plcV1 = 1
 
 -- | A simple language for expressing conditions under which it is valid to
 -- withdraw from a normal UTxO payment address or to use a stake address.
@@ -66,7 +101,7 @@ newtype ScriptHash crypto =
   deriving (Show, Eq, Ord, NoUnexpectedThunks)
 
 data Script crypto = MultiSigScript (MultiSig crypto)
-                     -- new languages go here
+                     | PlutusScriptV1 ScriptPLC
   deriving (Show, Eq, Ord, Generic)
 
 instance NoUnexpectedThunks (Script crypto)
@@ -74,6 +109,12 @@ instance NoUnexpectedThunks (Script crypto)
 deriving instance Crypto crypto => ToCBOR (ScriptHash crypto)
 deriving instance Crypto crypto => FromCBOR (ScriptHash crypto)
 
+newtype DataHash crypto = DataHash (Hash (HASH crypto) Data)
+  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord)
+
+
+deriving instance Crypto crypto => ToCBOR (DataHash crypto)
+deriving instance Crypto crypto => FromCBOR (DataHash crypto)
 
 -- | Count nodes and leaves of multi signature script
 countMSigNodes :: MultiSig crypto -> Int
@@ -124,6 +165,14 @@ getKeyCombinations (RequireMOf m msigs) =
     map (concat . List.concatMap getKeyCombinations) perms
 
 
+-- | Use these from Plutus
+-- TODO make this Plutus type
+newtype Data = Data Integer
+  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord, ToCBOR, FromCBOR)
+
+-- | temporary validator always returns true and same amount of resources
+runPLCScript :: CostMod -> ScriptPLC -> [Data] -> ExUnits -> (IsValidating, ExUnits)
+runPLCScript _ _ _ _ = (IsValidating Yes, ExUnits 0 0)
 
 -- CBOR
 
@@ -157,10 +206,27 @@ instance (Crypto crypto) =>
   ToCBOR (Script crypto) where
   toCBOR (MultiSigScript msig) =
     toCBOR nativeMultiSigTag <> toCBOR msig
+  toCBOR (PlutusScriptV1 plc) =
+    toCBOR plcV1 <> toCBOR plc
+
 
 instance (Crypto crypto) =>
   FromCBOR (Script crypto) where
   fromCBOR = do
     decodeWord >>= \case
       0 -> MultiSigScript <$> fromCBOR
+      k -> invalidKey k
+
+instance ToCBOR IsThing
+ where
+   toCBOR = \case
+     Yes  -> toCBOR (0 :: Word8)
+     Nope -> toCBOR (1 :: Word8)
+
+instance FromCBOR IsThing
+ where
+  fromCBOR = do
+    decodeWord >>= \case
+      0 -> pure Yes
+      1 -> pure Nope
       k -> invalidKey k
