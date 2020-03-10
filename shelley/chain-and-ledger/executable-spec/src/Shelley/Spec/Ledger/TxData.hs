@@ -44,11 +44,16 @@ import           Shelley.Spec.Ledger.MetaData (MetaDataHash)
 import           Shelley.Spec.Ledger.Slot (EpochNo (..), SlotNo (..))
 import           Shelley.Spec.Ledger.Updates (Update, emptyUpdate, updateNull)
 
-import           Shelley.Spec.Ledger.Serialization (CBORGroup (..), CBORMap (..), CborSeq (..),
-                     FromCBORGroup (..), ToCBORGroup (..), decodeMapContents)
+import           Shelley.Spec.Ledger.Serialization (CBORGroup (..), CBORMap (..), CborSeq (..), FromCBORGroup (..),
+                     ToCBORGroup (..), decodeMapContents)
 
 import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Value
+<<<<<<< HEAD
+=======
+import           Shelley.Spec.Ledger.PParams
+import           Shelley.Spec.Ledger.CostModel
+>>>>>>> changes from branch 2
 
 -- |The delegation of one stake key to another.
 data Delegation crypto = Delegation
@@ -131,22 +136,37 @@ data Ptr
 
 instance NoUnexpectedThunks Ptr
 
+
 newtype Wdrl crypto = Wdrl { unWdrl :: Map (RewardAcnt crypto) Coin }
   deriving (Show, Eq, Generic, NoUnexpectedThunks)
 
-instance Crypto crypto => ToCBOR (Wdrl crypto) where
-  toCBOR = toCBOR . CBORMap . unWdrl
+-- | types of things scripts can be used to validate
+data ScrTypes = InputTag | ForgeTag | CertTag | WdrlTag
+  deriving (Show, Eq, Ord, Generic)
 
-instance Crypto crypto => FromCBOR (Wdrl crypto) where
-  fromCBOR = Wdrl . unwrapCBORMap <$> fromCBOR
+instance NoUnexpectedThunks ScrTypes
 
--- | get value from UTxO output
-getValue :: forall crypto. (Crypto crypto) => UTxOOut crypto -> Value crypto
-getValue (UTxOOut _ v) = compactValueToValue v
+-- | pointer to the thing the redeemer is for
+data RdmrPtr = RdmrPtr
+  {   scrType :: ScrTypes
+    , rix      :: Ix }
+  deriving (Show, Eq, Ord, Generic)
 
--- | get address from UTxO output
-getAddress :: UTxOOut crypto -> Addr crypto
-getAddress (UTxOOut a _) = a
+instance NoUnexpectedThunks RdmrPtr
+
+-- | data structure of indexed redeemers
+data Rdmrs = Rdmrs (Map RdmrPtr Data)
+  deriving (Show, Eq, Ord, Generic)
+
+instance NoUnexpectedThunks Rdmrs
+
+-- | hash of the indexed redeemer structure in the Tx
+newtype RdmrsHash crypto
+  = RdmrsHash { _rh :: Hash (HASH crypto) Rdmrs }
+  deriving (Show, Eq, Ord, NoUnexpectedThunks)
+
+deriving instance Crypto crypto => ToCBOR (RdmrsHash crypto)
+deriving instance Crypto crypto => FromCBOR (RdmrsHash crypto)
 
 -- | get value from Tx output
 getValueTx :: TxOut crypto -> Value crypto
@@ -155,13 +175,6 @@ getValueTx (TxOut _ v) = v
 -- | get address from Tx output
 getAddressTx :: TxOut crypto -> Addr crypto
 getAddressTx (TxOut a _) = a
-
--- | get coin amount from UTxO output
-getCoin :: Crypto crypto => UTxOOut crypto -> Coin
-getCoin (UTxOOut _ v) =
-  getAdaAmount $ Value $ filterWithKey (\k _ -> k==adaID) v'
-  where
-    Value v' = compactValueToValue v
 
 -- |A unique ID of a transaction, which is computable from the transaction.
 newtype TxId crypto
@@ -172,15 +185,49 @@ deriving instance Crypto crypto => ToCBOR (TxId crypto)
 deriving instance Crypto crypto => FromCBOR (TxId crypto)
 
 -- |The input of a UTxO.
+data UTxOIn crypto
+  = UTxOIn (TxId crypto) Natural -- TODO use our own Natural type
+  deriving (Show, Eq, Generic, Ord)
+
+instance NoUnexpectedThunks (UTxOIn crypto)
+
+-- |The input of a Tx.
 data TxIn crypto
-  = TxIn (TxId crypto) Natural -- TODO use our own Natural type
+  = TxIn (TxId crypto) Natural IsFee -- TODO use our own Natural type
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (TxIn crypto)
 
 -- |The output of a Tx.
+data TxOutP crypto = TxOutP (Addr crypto) (Value crypto) (DataHash crypto)
+  deriving (Show, Eq, Generic, Ord)
+
+instance NoUnexpectedThunks (TxOutP crypto)
+
+-- | current item - things that might need validation
+data CurItem crypto
+  = SH (ScriptHash crypto) | TI (TxIn crypto) | WD (Wdrl crypto) | DC (DCert crypto)
+  deriving (Show, Eq, Generic)
+
+instance NoUnexpectedThunks (CurItem crypto)
+
+-- |The output of a UTxO.
+data UTxOOut crypto
+  = UTxOOutND (OutND crypto) | UTxOOutPT (TxOutP crypto) SlotNo
+  deriving (Show, Eq, Generic, Ord)
+
+instance NoUnexpectedThunks (UTxOOut crypto)
+
+-- |The output of a Tx or UTxO without data value.
+data OutND crypto
+  = OutND (Addr crypto) (Value crypto)
+  deriving (Show, Eq, Generic, Ord)
+
+instance NoUnexpectedThunks (OutND crypto)
+
+-- |The output of a Tx.
 data TxOut crypto
-  = TxOut (Addr crypto) (Value crypto)
+  = TxOutND (OutND crypto) | TxOutPT (TxOutP crypto) HasDV
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (TxOut crypto)
@@ -244,14 +291,33 @@ data TxBody crypto
       , _outputs  :: Seq (TxOut crypto)
       , _certs    :: Seq (DCert crypto)
       , _forge    :: Value crypto
+<<<<<<< HEAD
+=======
+      , _exunits  :: ExUnits
+>>>>>>> changes from branch 2
       , _wdrls    :: Wdrl crypto
       , _txfee    :: Coin
+      , _fst      :: SlotNo
       , _ttl      :: SlotNo
       , _txUpdate :: Update crypto
+      , _ppHash   :: Maybe (PPHash crypto)
+      , _rdmrsHash:: Maybe (RdmrsHash crypto)
       , _mdHash   :: Maybe (MetaDataHash crypto)
       } deriving (Show, Eq, Generic)
 
 instance NoUnexpectedThunks (TxBody crypto)
+
+-- |transaction witness data
+data TxWitness crypto
+  = TxWitness
+      { _witnessVKeySet :: !(Set (WitVKey crypto))
+      , _scripts        :: !(Set (Script crypto))
+      , _dats           :: !(Set Data)
+      , _rdmrs          :: Rdmrs
+      } deriving (Show, Eq, Generic)
+
+instance Crypto crypto => NoUnexpectedThunks (TxWitness crypto)
+
 
 -- |Proof/Witness that a transaction is authorized by the given key holder.
 data WitVKey crypto
@@ -284,6 +350,97 @@ newtype StakePools crypto =
 
 
 -- CBOR
+
+instance FromCBOR RdmrPtr
+ where
+   fromCBOR = do
+     enforceSize "RdmrPtr" 2
+     a <- fromCBOR
+     b <- fromCBOR
+     pure $ RdmrPtr a b
+
+
+instance ToCBOR RdmrPtr
+ where
+   toCBOR rp =
+     encodeListLen 2
+       <> toCBOR (scrType rp)
+       <> toCBOR (rix rp)
+
+
+instance
+  (Crypto crypto)
+  => ToCBOR (CurItem crypto)
+ where
+   toCBOR = \case
+     SH a ->
+       encodeListLen 2
+         <> toCBOR (0 :: Word8)
+         <> toCBOR a
+     TI a ->
+       encodeListLen 2
+         <> toCBOR (1 :: Word8)
+         <> toCBOR a
+     WD a ->
+       encodeListLen 2
+         <> toCBOR (2 :: Word8)
+         <> toCBOR a
+     DC a ->
+       encodeListLen 2
+         <> toCBOR (3 :: Word8)
+         <> toCBOR a
+
+instance
+  (Crypto crypto)
+  => FromCBOR (CurItem crypto)
+ where
+  fromCBOR = do
+    decodeWord >>= \case
+      0 -> do
+        a <- fromCBOR
+        pure $ SH a
+      1 -> do
+        a <- fromCBOR
+        pure $ TI a
+      2 -> do
+        a <- fromCBOR
+        pure $ WD a
+      3 -> do
+        a <- fromCBOR
+        pure $ DC a
+      k -> invalidKey k
+
+instance Crypto crypto => ToCBOR (Wdrl crypto) where
+  toCBOR = toCBOR . CBORMap . unWdrl
+
+instance Crypto crypto => FromCBOR (Wdrl crypto) where
+  fromCBOR = Wdrl . unwrapCBORMap <$> fromCBOR
+
+instance ToCBOR Rdmrs where
+  toCBOR = toCBOR . CBORMap . getRMs
+    where
+      getRMs (Rdmrs rm) = rm
+
+instance FromCBOR Rdmrs where
+  fromCBOR = Rdmrs . unwrapCBORMap <$> fromCBOR
+
+instance ToCBOR ScrTypes
+ where
+   toCBOR = \case
+     InputTag -> toCBOR (0 :: Word8)
+     ForgeTag -> toCBOR (1 :: Word8)
+     CertTag  -> toCBOR (2 :: Word8)
+     WdrlTag  -> toCBOR (3 :: Word8)
+
+instance FromCBOR ScrTypes
+ where
+  fromCBOR = do
+    decodeWord >>= \case
+      0 -> pure InputTag
+      1 -> pure ForgeTag
+      2 -> pure CertTag
+      3 -> pure WdrlTag
+      k -> invalidKey k
 
 instance
   (Crypto crypto)
@@ -384,18 +541,87 @@ instance
   (Typeable crypto, Crypto crypto)
   => ToCBOR (TxIn crypto)
  where
-  toCBOR (TxIn txId index) =
+  toCBOR (TxIn txId index isf) =
+    encodeListLen 3
+      <> toCBOR txId
+      <> toCBOR (fromIntegral index :: Word64)
+      <> toCBOR isf
+
+instance (Crypto crypto) =>
+  FromCBOR (TxIn crypto) where
+  fromCBOR = do
+    enforceSize "TxIn" 3
+    a <- fromCBOR
+    (b :: Word64) <- fromCBOR
+    c <- fromCBOR
+    pure $ TxIn a (fromInteger $ toInteger b) c
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => ToCBOR (UTxOIn crypto)
+ where
+  toCBOR (UTxOIn txId index) =
     encodeListLen 2
       <> toCBOR txId
       <> toCBOR (fromIntegral index :: Word64)
 
 instance (Crypto crypto) =>
-  FromCBOR (TxIn crypto) where
+  FromCBOR (UTxOIn crypto) where
   fromCBOR = do
-    enforceSize "TxIn" 2
+    enforceSize "UTxOIn" 2
     a <- fromCBOR
     (b :: Word64) <- fromCBOR
-    pure $ TxIn a (fromInteger $ toInteger b)
+    pure $ UTxOIn a (fromInteger $ toInteger b)
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => ToCBOR (UTxOOut crypto)
+ where
+   toCBOR = \case
+     UTxOOutND out ->
+       encodeListLen 2
+         <> toCBOR (0 :: Word8)
+         <> toCBOR out
+     UTxOOutPT a b ->
+       encodeListLen 3
+         <> toCBOR (1 :: Word8)
+         <> toCBOR a
+         <> toCBOR b
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => ToCBOR (OutND crypto)
+ where
+   toCBOR (OutND addr v) =
+       encodeListLen (listLen addr + 1)
+         <> toCBORGroup addr
+         <> toCBOR v
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => FromCBOR (OutND crypto)
+ where
+  fromCBOR = do
+    n <- decodeListLen
+    addr <- fromCBORGroup
+    v <- fromCBOR
+    matchSize "OutND" ((fromIntegral . toInteger . listLen) addr + 1) n
+    pure $ OutND addr v
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => FromCBOR (UTxOOut crypto)
+ where
+  fromCBOR = do
+    decodeWord >>= \case
+      0 -> do
+        out <- fromCBOR
+        pure $ UTxOOutND out
+      1 -> do
+        a <- fromCBOR
+        b <- fromCBOR
+        pure $ UTxOOutPT a b
+      k -> invalidKey k
 
 instance
   (Typeable crypto, Crypto crypto)
@@ -419,19 +645,65 @@ instance
   (Typeable crypto, Crypto crypto)
   => ToCBOR (TxOut crypto)
  where
+<<<<<<< HEAD
   toCBOR (TxOut addr value) =
     encodeListLen (listLen addr + 1)
       <> toCBORGroup addr
       <> toCBOR (valueToCompactValue value)
+=======
+   toCBOR = \case
+     TxOutND out ->
+       encodeListLen 2
+         <> toCBOR (0 :: Word8)
+         <> toCBOR out
+     TxOutPT a b ->
+       encodeListLen 3
+         <> toCBOR (1 :: Word8)
+         <> toCBOR a
+         <> toCBOR b
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => FromCBOR (TxOut crypto)
+ where
+  fromCBOR = do
+    decodeWord >>= \case
+      0 -> do
+        out <- fromCBOR
+        pure $ TxOutND out
+      1 -> do
+        a <- fromCBOR
+        b <- fromCBOR
+        pure $ TxOutPT a b
+      k -> invalidKey k
+
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => ToCBOR (TxOutP crypto)
+ where
+  toCBOR (TxOutP addr v h) =
+    encodeListLen (listLen addr + 2)
+      <> toCBORGroup addr
+      <> toCBOR v
+      <> toCBOR h
+>>>>>>> changes from branch 2
 
 instance (Crypto crypto) =>
-  FromCBOR (TxOut crypto) where
+  FromCBOR (TxOutP crypto) where
   fromCBOR = do
     n <- decodeListLen
     addr <- fromCBORGroup
+<<<<<<< HEAD
     b <- fromCBOR
     matchSize "TxOut" ((fromIntegral . toInteger . listLen) addr + 1) n
     pure $ TxOut addr (compactValueToValue b)
+=======
+    v <- fromCBOR
+    h <- fromCBOR
+    matchSize "TxOutP" ((fromIntegral . toInteger . listLen) addr + 1) n
+    pure $ TxOutP addr v h
+>>>>>>> changes from branch 2
 
 instance
   Crypto crypto
@@ -452,6 +724,71 @@ instance
     b <- fromCBOR
     pure $ WitVKey a b
 
+--
+-- data CBORWits crypto
+--   = CBORWits
+--       { _cborWitsVKeys   :: CborSeq (WitVKey crypto)
+--       , _cborScripts :: CborSeq (Script crypto)
+--       , _cborDats :: CborSeq Data
+--       , _cborRdmrs :: CBORMap RdmrPtr Data
+--       } deriving (Generic)
+--
+-- instance (Crypto crypto) =>
+--   ToCBOR (CBORWits crypto) where
+--   toCBOR ws =
+--     let l = catMaybes $
+--               [ encodeMapElement 0 $ _cborWitsVKeys ws
+--               , encodeMapElement 1 $ _cborScripts ws
+--               , encodeMapElement 2 $ _cborDats ws
+--               , encodeMapElement 3 $ _cborRdmrs ws
+--               ]
+--         n = fromIntegral $ length l
+--     in encodeMapLen n <> fold l
+--     where
+--       encodeMapElement ix x = if null x then Nothing else Just (encodeWord ix <> toCBOR x)
+--
+-- instance (Crypto crypto) =>
+--   FromCBOR (CBORWits crypto) where
+--   fromCBOR = do
+--     mapParts <- decodeMapContents $
+--       decodeWord >>= \case
+--         0 -> fromCBOR >>= \x -> pure (\w -> w { _cborWitsVKeys  = x })
+--         1 -> fromCBOR >>= \x -> pure (\w -> w { _cborScripts  = x })
+--         2 -> fromCBOR >>= \x -> pure (\w -> w { _cborDats  = x })
+--         3 -> fromCBOR >>= \x -> pure (\w -> w { _cborRdmrs  = x })
+--         k -> invalidKey k
+--     pure $ foldr ($) start mapParts
+--     where
+--       start = CBORWits
+--          { _cborWitsVKeys = CborSeq Seq.empty
+--          , _cborScripts   = CborSeq Seq.empty
+--          , _cborDats      = CborSeq Seq.empty
+--          , _cborRdmrs     = CBORMap Map.empty
+--          }
+--
+instance
+  Crypto crypto
+  => FromCBOR (TxWitness crypto)
+ where
+  fromCBOR = do
+    enforceSize "TxWitness" 4
+    vkwts <- fromCBOR
+    scrts <- fromCBOR
+    dts <- fromCBOR
+    rdmrs <- fromCBOR
+    pure $ TxWitness vkwts scrts dts rdmrs
+
+instance
+  Crypto crypto
+  => ToCBOR (TxWitness crypto)
+ where
+  toCBOR (TxWitness vkwts scrts dts rdmrs) =
+    encodeListLen 4
+      <> toCBOR vkwts
+      <> toCBOR scrts
+      <> toCBOR dts
+      <> toCBOR rdmrs
+
 instance
   (Crypto crypto)
   => ToCBOR (TxBody crypto)
@@ -461,12 +798,25 @@ instance
           [ encodeMapElement 0 $ _inputs txbody
           , encodeMapElement 1 $ CborSeq $ _outputs txbody
           , encodeMapElement 2 $ _txfee txbody
+<<<<<<< HEAD
           , encodeMapElement 3 $ _ttl txbody
           , encodeMapElementUnless null 4 $ CborSeq $ _certs txbody
           , encodeMapElementUnless (null . val) 5 $ _forge txbody
           , encodeMapElementUnless (null . unWdrl) 6 $ _wdrls txbody
           , encodeMapElementUnless (updateNull) 7 $ _txUpdate txbody
           , encodeMapElement 8 =<< _mdHash txbody
+=======
+          , encodeMapElement 3 $ _fst txbody
+          , encodeMapElement 4 $ _ttl txbody
+          , encodeMapElementUnless null 5 $ CborSeq $ _certs txbody
+          , encodeMapElementUnless (null . val) 6 $ _forge txbody
+          , encodeMapElementUnless ((==) defaultUnits) 7 $ _exunits txbody
+          , encodeMapElementUnless (null . unWdrl) 8 $ _wdrls txbody
+          , encodeMapElementUnless (updateNull) 9 $ _txUpdate txbody
+          , encodeMapElement 10 =<< _ppHash txbody
+          , encodeMapElement 11 =<< _rdmrsHash txbody
+          , encodeMapElement 12 =<< _mdHash txbody
+>>>>>>> changes from branch 2
           ]
         n = fromIntegral $ length l
     in encodeMapLen n <> fold l
@@ -484,6 +834,7 @@ instance
    fromCBOR = do
      mapParts <- decodeMapContents $
        decodeWord >>= \case
+<<<<<<< HEAD
          0 -> fromCBOR                     >>= \x -> pure (0, \t -> t { _inputs   = x })
          1 -> (unwrapCborSeq <$> fromCBOR) >>= \x -> pure (1, \t -> t { _outputs  = x })
          2 -> fromCBOR                     >>= \x -> pure (2, \t -> t { _txfee    = x })
@@ -493,6 +844,21 @@ instance
          6 -> fromCBOR                     >>= \x -> pure (5, \t -> t { _wdrls    = x })
          7 -> fromCBOR                     >>= \x -> pure (6, \t -> t { _txUpdate = x })
          8 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _mdHash   = Just x })
+=======
+         0 -> fromCBOR                      >>= \x -> pure (0, \t -> t { _inputs   = x })
+         1 -> (unwrapCborSeq <$> fromCBOR)  >>= \x -> pure (1, \t -> t { _outputs  = x })
+         2 -> fromCBOR                      >>= \x -> pure (2, \t -> t { _txfee    = x })
+         3 -> fromCBOR                      >>= \x -> pure (4, \t -> t { _fst      = x })
+         4 -> fromCBOR                      >>= \x -> pure (3, \t -> t { _ttl      = x })
+         5 -> (unwrapCborSeq <$> fromCBOR)  >>= \x -> pure (4, \t -> t { _certs    = x })
+         6 -> fromCBOR                      >>= \x -> pure (3, \t -> t { _forge    = x })
+         7 -> fromCBOR                      >>= \x -> pure (4, \t -> t { _exunits  = x })
+         8 -> fromCBOR                      >>= \x -> pure (5, \t -> t { _wdrls    = x })
+         9 -> fromCBOR                      >>= \x -> pure (6, \t -> t { _txUpdate = x })
+         10 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _ppHash   = Just x })
+         11 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _rdmrsHash= Just x })
+         12 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _mdHash   = Just x })
+>>>>>>> changes from branch 2
          k -> invalidKey k
      let requiredFields :: Map Int String
          requiredFields = Map.fromList $
@@ -511,11 +877,19 @@ instance
           { _inputs   = Set.empty
           , _outputs  = Seq.empty
           , _txfee    = Coin 0
+          , _fst      = SlotNo 0
           , _ttl      = SlotNo 0
           , _certs    = Seq.empty
+<<<<<<< HEAD
           , _forge    = Value Map.empty
+=======
+          , _forge    = zeroV
+          , _exunits  = defaultUnits
+>>>>>>> changes from branch 2
           , _wdrls    = Wdrl Map.empty
           , _txUpdate = emptyUpdate
+          , _ppHash   = Nothing
+          , _rdmrsHash= Nothing
           , _mdHash   = Nothing
           }
 
@@ -708,3 +1082,13 @@ instance Relation (StakeCreds crypto) where
   (StakeCreds stkCreds) ▷>= vmin = StakeCreds $ stkCreds ▷>= vmin
 
   size (StakeCreds stkCreds) = size stkCreds
+
+-- Lenses
+
+-- makeLenses ''TxBody
+--
+-- makeLenses ''Delegation
+--
+-- makeLenses ''PoolParams
+--
+-- makeLenses ''TxWitness

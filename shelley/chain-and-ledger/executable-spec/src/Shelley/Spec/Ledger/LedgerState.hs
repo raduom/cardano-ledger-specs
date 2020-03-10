@@ -84,7 +84,7 @@ import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import           Data.Proxy (Proxy (..))
 import qualified Data.Sequence as Seq (Seq (..))
-import           Data.Set (Set)
+import           Data.Set (Set, size)
 import qualified Data.Set as Set
 import           GHC.Generics (Generic)
 import           Shelley.Spec.Ledger.Coin (Coin (..))
@@ -628,7 +628,8 @@ txsize (Tx
 
 -- |Minimum fee calculation
 minfee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Coin
-minfee pp tx = Coin $ _minfeeA pp * txsize tx + fromIntegral (_minfeeB pp)
+minfee pc tx = Coin $ pc ^. minfeeA * txsize tx + fromIntegral (pc ^. minfeeB)
+  + txscrfee (size $ tx ^. txwits ^. scripts) (pc ^. prices) (tx ^. txexunits)
 
 -- |Determine if the fee is large enough
 validFee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Validity
