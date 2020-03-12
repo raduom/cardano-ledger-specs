@@ -23,7 +23,7 @@ import           Control.Monad (unless)
 
 import           Data.ByteString (ByteString)
 import           Data.Foldable (fold)
-import           Data.Map.Strict (Map)
+import           Data.Map.Strict (Map, filterWithKey)
 import qualified Data.Map.Strict as Map
 import           Data.Ord (comparing)
 import           Data.Sequence (Seq)
@@ -180,6 +180,31 @@ data UTxOIn crypto
 
 instance NoUnexpectedThunks (UTxOIn crypto)
 
+-- | get UTxOIn reference from Tx input
+utxoref :: TxIn crypto -> UTxOIn crypto
+utxoref (TxIn txid ix _) = UTxOIn txid ix
+
+-- | get value from UTxO output
+getValue :: Crypto crypto => UTxOOut crypto -> Value crypto
+getValue (UTxOOutND (XOutND   _ v)   _) = compactValueToValue v
+getValue (UTxOOutPT (UTxOOutP _ v _) _) = compactValueToValue v
+
+-- | get address from UTxO output
+getAddress :: Crypto crypto => UTxOOut crypto -> Addr crypto
+getAddress (UTxOOutND (XOutND   a _)   _) = a
+getAddress (UTxOOutPT (UTxOOutP a _ _) _) = a
+
+-- | get address from UTxO output
+getCoin :: Crypto crypto => UTxOOut crypto -> Coin
+getCoin (UTxOOutND (XOutND   _ v)   _) =
+  getAdaAmount $ Value $ filterWithKey (\k a -> k==adaID) v'
+  where
+    Value v' = compactValueToValue v
+getCoin (UTxOOutPT (UTxOOutP _ v _) _) =
+  getAdaAmount $ Value $ filterWithKey (\k a -> k==adaID) v'
+  where
+    Value v' = compactValueToValue v
+    
 -- |The input of a Tx.
 data TxIn crypto
   = TxIn (TxId crypto) Natural IsFee -- TODO use our own Natural type
@@ -191,7 +216,12 @@ instance NoUnexpectedThunks (TxIn crypto)
 data TxOutP crypto = TxOutP (Addr crypto) (Value crypto) (DataHash crypto)
   deriving (Show, Eq, Generic, Ord)
 
+-- |A plutus output of a UTxO.
+data UTxOOutP crypto = UTxOOutP (Addr crypto) (CompactValue crypto) (DataHash crypto)
+  deriving (Show, Eq, Generic, Ord)
+
 instance NoUnexpectedThunks (TxOutP crypto)
+instance NoUnexpectedThunks (UTxOOutP crypto)
 
 -- | current item - things that might need validation
 data CurItem crypto
@@ -202,17 +232,23 @@ instance NoUnexpectedThunks (CurItem crypto)
 
 -- |The output of a UTxO.
 data UTxOOut crypto
-  = UTxOOutND (OutND crypto) | UTxOOutPT (TxOutP crypto) SlotNo
+  = UTxOOutND (XOutND crypto) SlotNo | UTxOOutPT (UTxOOutP crypto) SlotNo
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (UTxOOut crypto)
 
--- |The output of a Tx or UTxO without data value.
+-- |The output of a Tx  without data value.
 data OutND crypto
   = OutND (Addr crypto) (Value crypto)
   deriving (Show, Eq, Generic, Ord)
 
+-- |The output of a UTxO without data value.
+data XOutND crypto
+  = XOutND (Addr crypto) (CompactValue crypto)
+  deriving (Show, Eq, Generic, Ord)
+
 instance NoUnexpectedThunks (OutND crypto)
+instance NoUnexpectedThunks (XOutND crypto)
 
 -- |The output of a Tx.
 data TxOut crypto
@@ -556,15 +592,36 @@ instance
   => ToCBOR (UTxOOut crypto)
  where
    toCBOR = \case
-     UTxOOutND out ->
-       encodeListLen 2
+     UTxOOutND out s ->
+       encodeListLen 3
          <> toCBOR (0 :: Word8)
          <> toCBOR out
+         <> toCBOR s
      UTxOOutPT a b ->
        encodeListLen 3
          <> toCBOR (1 :: Word8)
          <> toCBOR a
          <> toCBOR b
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => ToCBOR (XOutND crypto)
+ where
+   toCBOR (XOutND addr v) =
+       encodeListLen (listLen addr + 1)
+         <> toCBORGroup addr
+         <> toCBOR v
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => FromCBOR (XOutND crypto)
+ where
+  fromCBOR = do
+    n <- decodeListLen
+    addr <- fromCBORGroup
+    v <- fromCBOR
+    matchSize "OutND" ((fromIntegral . toInteger . listLen) addr + 1) n
+    pure $ XOutND addr v
 
 instance
   (Typeable crypto, Crypto crypto)
@@ -594,7 +651,8 @@ instance
     decodeWord >>= \case
       0 -> do
         out <- fromCBOR
-        pure $ UTxOOutND out
+        s   <- fromCBOR
+        pure $ UTxOOutND out s
       1 -> do
         a <- fromCBOR
         b <- fromCBOR
@@ -631,6 +689,26 @@ instance
         pure $ TxOutPT a b
       k -> invalidKey k
 
+
+instance
+  (Typeable crypto, Crypto crypto)
+  => ToCBOR (UTxOOutP crypto)
+ where
+  toCBOR (UTxOOutP addr v h) =
+    encodeListLen (listLen addr + 2)
+      <> toCBORGroup addr
+      <> toCBOR v
+      <> toCBOR h
+
+instance (Crypto crypto) =>
+  FromCBOR (UTxOOutP crypto) where
+  fromCBOR = do
+    n <- decodeListLen
+    addr <- fromCBORGroup
+    v <- fromCBOR
+    h <- fromCBOR
+    matchSize "UTxOOutP" ((fromIntegral . toInteger . listLen) addr + 1) n
+    pure $ UTxOOutP addr v h
 
 instance
   (Typeable crypto, Crypto crypto)

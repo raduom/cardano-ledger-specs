@@ -12,6 +12,11 @@ module Shelley.Spec.Ledger.PParams
   ( PParams(..)
   , PPHash
   , emptyPParams
+  -- lenses
+  , prices
+  , maxTxExUnits
+  , maxBlockExUnits
+  , costmdls
   , ActiveSlotCoeff
   , mkActiveSlotCoeff
   , activeSlotVal
@@ -36,7 +41,7 @@ import           Shelley.Spec.Ledger.Serialization (CBORGroup (..), FromCBORGrou
                      ToCBORGroup (..), rationalFromCBOR, rationalToCBOR)
 import           Shelley.Spec.Ledger.Slot (EpochNo (..))
 
-import qualified Shelley.Spec.NonIntegral (ln')
+import           Shelley.Spec.NonIntegral (ln')
 
 
 import           Shelley.Spec.Ledger.CostModel
