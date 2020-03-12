@@ -52,8 +52,12 @@ newtype HasDV = HasDV IsThing
 -- temp plc script! Use these from Plutus
 -- TODO make this right type from Plutus
 newtype ScriptPLC = ScriptPLC Integer
+<<<<<<< HEAD
   deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord, ToCBOR)
 >>>>>>> changes from branch 2
+=======
+  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord, ToCBOR, FromCBOR)
+>>>>>>> working on LedgerState
 
 -- | Magic number representing the tag of the native multi-signature script
 -- language. For each script language included, a new tag is chosen and the tag
@@ -255,6 +259,7 @@ instance (Crypto crypto) =>
   fromCBOR = do
     decodeWord >>= \case
       0 -> MultiSigScript <$> fromCBOR
+      1 -> PlutusScriptV1 <$> fromCBOR
       k -> invalidKey k
 <<<<<<< HEAD
 =======

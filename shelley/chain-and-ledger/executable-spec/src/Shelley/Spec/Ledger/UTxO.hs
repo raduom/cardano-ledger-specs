@@ -34,6 +34,7 @@ module Shelley.Spec.Ledger.UTxO
   , verifyWitVKey
   , scriptsNeeded
   , txinsScript
+  , mkUTxOout
   ) where
 
 import           Cardano.Binary (FromCBOR (..), ToCBOR (..))
@@ -42,7 +43,7 @@ import           Data.Foldable (toList)
 import           Data.Map.Strict (Map, keys)
 import qualified Data.Map.Strict as Map
 import qualified Data.Maybe as Maybe
-import           Data.Set (Set)
+import           Data.Set (Set, map)
 import qualified Data.Set as Set
 
 import           Cardano.Ledger.Shelley.Crypto
@@ -56,11 +57,24 @@ import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), pattern
                      pattern Delegate, pattern Delegation, PoolCert (..), PoolParams (..),
                      TxBody (..), TxId (..), TxIn (..), Wdrl (..), UTxOOut(..),
                      WitVKey (..), getRwdCred, getAddress, getValue, getAddressTx, getValueTx)
+
+-- .                     TxBody (..), TxId (..), TxIn (..), TxOut (..), Wdrl (..),
+--                      WitVKey (..), getRwdCred)
+-- =======
+--                      pattern Delegate, pattern Delegation, PoolCert (..), TxBody (..),
+--                      UTxOIn (..), UTxOOut (..), OutND (..), TxOutP (..), UTxOOutP (..), XOutND (..),
+--                      TxId (..), TxIn (..), TxOut (..), Wdrl (..), WitVKey (..), getRwdCred, utxoref,
+--                      outputs, poolPubKey, txUpdate, getValue, getAddress)
+
 import           Shelley.Spec.Ledger.Updates (Update)
+import           Shelley.Spec.Ledger.Slot (SlotNo (..))
 
 import           Data.Coerce (coerce)
 import           Shelley.Spec.Ledger.Delegation.Certificates (DCert (..), StakePools (..), dvalue,
                      requiresVKeyWitness)
+import           Shelley.Spec.Ledger.Scripts
+import           Shelley.Spec.Ledger.Value
+
 import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Value
 
@@ -106,20 +120,29 @@ txid
   -> TxId crypto
 txid = TxId . hash
 
--- |Compute the UTxO inputs of a transaction.
+-- |Compute the UTxO inputs from inputs of a transaction.
 txins
   :: TxBody crypto
-  -> Set (TxIn crypto)
-txins = _inputs
+  -> Set (UTxOIn crypto)
+txins txb = Set.map utxoref (_inputs txb)
+
+-- | makes a UTxO output from a Tx output
+mkUTxOout :: Crypto crypto
+  => SlotNo
+  -> TxOut crypto
+  -> UTxOOut crypto
+mkUTxOout s (TxOutND (OutND a v)) = UTxOOutND (XOutND a (valueToCompactValue v)) s
+mkUTxOout s (TxOutPT (TxOutP a v dh) _) = UTxOOutPT (UTxOOutP a (valueToCompactValue v) dh) s
+
 
 -- |Compute the transaction outputs of a transaction.
 txouts
   :: Crypto crypto
-  => TxBody crypto
+  => SlotNo
+  -> TxBody crypto
   -> UTxO crypto
-txouts tx = UTxO $
-  Map.fromList [(TxIn transId idx, UTxOOut (getAddressTx out) (valueToCompactValue $ getValueTx out)) |
-    (out, idx) <- zip (toList $ _outputs tx) [0..]]
+txouts s tx = UTxO $
+  Map.fromList [(UTxOIn transId idx, mkUTxOout s out) | (out, idx) <- zip (toList $ tx ^. outputs) [0..]]
   where
     transId = txid tx
 
@@ -128,7 +151,7 @@ txinLookup
   :: TxIn crypto
   -> UTxO crypto
   -> Maybe (UTxOOut crypto)
-txinLookup txin (UTxO utxo') = Map.lookup txin utxo'
+txinLookup txin (UTxO utxo') = Map.lookup (utxoref txin) utxo'
 
 -- |Verify a transaction body witness
 verifyWitVKey
@@ -221,7 +244,8 @@ scriptCred (ScriptHashObj hs) = Just hs
 -- and the withdrawals.
 -- now runs the forging scripts too
 scriptsNeeded
-  :: UTxO crypto
+  :: Crypto crypto
+  => UTxO crypto
   -> Tx crypto
   -> Set (ScriptHash crypto)
 scriptsNeeded u tx =
@@ -239,9 +263,10 @@ scriptsNeeded u tx =
 -- | Compute the subset of inputs of the set 'txInps' for which each input is
 -- locked by a script in the UTxO 'u'.
 txinsScript
-  :: Set (TxIn crypto)
+  :: Crypto crypto
+  => Set (UTxOIn crypto)
   -> UTxO crypto
-  -> Set (TxIn crypto)
+  -> Set (UTxOIn crypto)
 txinsScript txInps (UTxO u) =
   txInps `Set.intersection`
   Map.keysSet (Map.filter (\utxoout ->

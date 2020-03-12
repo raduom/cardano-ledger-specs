@@ -23,6 +23,7 @@ module Shelley.Spec.Ledger.Tx
   , ttl
   , body
   , metadata
+  , txwits
   -- , witnessVKeySet
   -- , witnessMSigMap
     -- witness data
@@ -79,32 +80,6 @@ data Tx crypto
 
 instance Crypto crypto => NoUnexpectedThunks (Tx crypto)
 
-
--- txToCBORWits
---   :: Tx crypto
---   -> CBORWits crypto
--- txToCBORWits tx = CBORWits
---   { _cborWitsVKeys   = (CborSeq . Seq.fromList . Set.toList . _witnessVKeySet) tx
---   , _cborWitsScripts = (CborSeq . Seq.fromList . Map.elems . _witnessMSigMap) tx
---   }
---
--- cborWitsToTx
---   :: (Crypto crypto)
---   => TxBody crypto
---   -> CBORWits crypto
---   -> Maybe MetaData
---   -> Tx crypto
--- cborWitsToTx b ws md = Tx
---   { _body = b
---   , _witnessVKeySet =
---       (Set.fromList . toList . unwrapCborSeq . _cborWitsVKeys) ws
---   , _witnessMSigMap =
---       Map.fromList $
---         fmap
---           (\x -> (hashScript x, x))
---           ((toList . unwrapCborSeq . _cborWitsScripts) ws)
---   , _metadata = md
---   }
 
 
 instance
