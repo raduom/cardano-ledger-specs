@@ -39,6 +39,7 @@ module Shelley.Spec.Ledger.Tx
   , ttl
   , body
   , metadata
+  , txwits
     -- witness data
   , WitVKey(..)
   , MultiSignatureScript

@@ -92,7 +92,7 @@ getAdaAmount (Value v) = Coin $ c
 -- | currency ID of Ada
 -- TODO use the right script here
 adaID :: Crypto crypto => ScriptHash crypto
-adaID = ScriptHash $ hash $ MultiSigScript (RequireAllOf [])
+adaID = ScriptHash $ hash $ PlutusScriptV1 (ScriptPLC 0)
 
 -- | token of Ada
 adaToken :: ByteString

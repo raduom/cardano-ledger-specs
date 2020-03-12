@@ -16,6 +16,11 @@ module Shelley.Spec.Ledger.PParams
   , PParams
   , PPHash
   , emptyPParams
+  -- lenses
+  , prices
+  , maxTxExUnits
+  , maxBlockExUnits
+  , costmdls
   , ActiveSlotCoeff
   , mkActiveSlotCoeff
   , activeSlotVal

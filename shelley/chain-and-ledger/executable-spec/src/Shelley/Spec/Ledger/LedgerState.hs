@@ -103,7 +103,7 @@ import           Shelley.Spec.Ledger.PParams (PParams, ProposedPPUpdates (..), U
                      _keyDecayRate, _keyDeposit, _keyMinRefund, _minfeeA, _minfeeB, _rho, _tau)
 import           Shelley.Spec.Ledger.Slot (Duration (..), EpochNo (..), SlotNo (..), epochInfoEpoch,
                      epochInfoFirst, epochInfoSize, (+*), (-*))
-import           Shelley.Spec.Ledger.Tx (Tx (..), extractGenKeyHash, extractKeyHash)
+import           Shelley.Spec.Ledger.Tx (Tx (..), body, certs, extractGenKeyHash, extractKeyHash, txwits)
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix,
                      MIRCert (..), PoolCert (..), PoolMetaData (..), PoolParams (..), Ptr (..),
                      RewardAcnt (..), TxBody (..), TxId (..), TxIn (..), TxOut (..), Url (..), UTxOOut(..),
@@ -111,7 +111,7 @@ import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCe
 -- import           Shelley.Spec.Ledger.Updates (AVUpdate (..), Mdt (..), PPUpdate (..), Update (..),
 --                      UpdateState (..), apps, emptyUpdate, emptyUpdateState)
 import           Shelley.Spec.Ledger.UTxO (UTxO (..), balance, totalDeposits, txinLookup, txins,
-                     txouts, txup, verifyWitVKey)
+                     txouts, txup, verifyWitVKey, mkUTxOout)
 import           Shelley.Spec.Ledger.Validation (ValidationError (..), Validity (..))
 
 import           Shelley.Spec.Ledger.Delegation.Certificates (DCert (..), PoolDistr (..),
@@ -124,7 +124,10 @@ import           Byron.Spec.Ledger.Core (dom, (∪), (∪+), (⋪), (▷), (◁)
 import           Shelley.Spec.Ledger.BaseTypes (Globals (..), ShelleyBase, StrictMaybe (..),
                      UnitInterval, intervalValue, text64Size)
 import           Shelley.Spec.Ledger.Scripts (countMSigNodes)
+
 import           Shelley.Spec.Ledger.Value
+import           Shelley.Spec.Ledger.CostModel
+import           Shelley.Spec.Ledger.Scripts
 
 -- | Representation of a list of pairs of key pairs, e.g., pay and stake keys
 type KeyPairs crypto = [(KeyPair 'Regular crypto, KeyPair 'Regular crypto)]
@@ -500,12 +503,16 @@ genesisId =
    Set.empty
    StrictSeq.Empty
    StrictSeq.Empty
-   (Value Map.empty)
+   zeroV
+   defaultUnits
    (Wdrl Map.empty)
    (Coin 0)
    (SlotNo 0)
+   (SlotNo 0)
+   SNothing
    SNothing
    SNothing)
+
 
 -- |Creates the UTxO for a new ledger with the specified transaction outputs.
 genesisCoins
@@ -513,8 +520,7 @@ genesisCoins
   => [TxOut crypto]
   -> UTxO crypto
 genesisCoins outs = UTxO $
-  Map.fromList [(TxIn genesisId idx, UTxOOut (getAddressTx out) (valueToCompactValue $ getValueTx out)) |
-    (idx, out) <- zip [0..] outs]
+  Map.fromList [(UTxOIn genesisId idx, mkUTxOout (SlotNo 0) out) | (idx, out) <- zip [0..] outs]
 
 -- |Creates the ledger state for an empty ledger which
 -- contains the specified transaction outputs.
@@ -558,7 +564,7 @@ validInputs tx u =
     else Invalid [BadInputs]
 
 -- |Implementation of abstract transaction size
--- TODO forge value and proper outputs size!
+-- TODO make correct
 txsize :: forall crypto . (Crypto crypto) => Tx crypto-> Integer
 txsize (Tx
           txbody
@@ -822,9 +828,9 @@ witsVKeyNeeded utxo' tx@(Tx txbody _ _ _) _genDelegs =
     inputAuthors = undiscriminateKeyHash `Set.map` Set.foldr insertHK Set.empty (_inputs txbody)
     insertHK txin hkeys =
       case txinLookup txin utxo' of
-        Just (UTxOOut (AddrBase (KeyHashObj pay) _) _) -> Set.insert pay hkeys
+        Just to -> Set.insert pay hkeys
         _                               -> hkeys
-
+    (AddrBase (KeyHashObj pay) _) = getAddress to
     wdrlAuthors =
       Set.fromList $ extractKeyHash $ map getRwdCred (Map.keys (unWdrl $ _wdrls txbody))
     owners = foldl Set.union Set.empty
