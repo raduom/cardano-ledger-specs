@@ -42,6 +42,8 @@ import           Shelley.Spec.Ledger.Tx
 import           Shelley.Spec.Ledger.Updates (emptyUpdateState)
 import           Shelley.Spec.Ledger.UTxO
 
+import           Shelley.Spec.Ledger.Value
+
 data UTXO crypto
 
 data UtxoEnv crypto
@@ -67,7 +69,7 @@ instance
     | MaxTxSizeUTxO Integer Integer
     | InputSetEmptyUTxO
     | FeeTooSmallUTxO Coin Coin
-    | ValueNotConservedUTxO Coin Coin
+    | ValueNotConservedUTxO (Value crypto) (Value crypto)
     | NegativeOutputsUTxO
     | UpdateFailure (PredicateFailure (UP crypto))
     deriving (Eq, Show, Generic)

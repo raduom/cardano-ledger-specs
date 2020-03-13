@@ -17,7 +17,7 @@ import           Shelley.Spec.Ledger.Coin (Coin (..))
 import           GHC.Generics (Generic)
 import           Data.Word (Word8)
 import           Cardano.Crypto.Hash (Hash, hash)
-import           Data.Map.Strict (Map, elems, empty, unionWith, toList, singleton, filterWithKey)
+import           Data.Map.Strict (Map, elems, empty, unionWith, toList, singleton, filterWithKey, keys)
 import           Cardano.Ledger.Shelley.Crypto
 import           Data.ByteString.Char8 (ByteString, pack)
 import           Shelley.Spec.Ledger.Scripts
@@ -81,7 +81,7 @@ adaToken = pack "Ada"
 
 valueToCompactValue :: Crypto crypto => Value crypto -> CompactValue crypto
 valueToCompactValue (Value v)
-  | filterWithKey (\k _ -> k == adaID) v == v = AdaOnly $ getAdaAmount $ Value v
+  | keys v == [adaID] = AdaOnly $ getAdaAmount $ Value v
   | otherwise                                 = MixValue $ Value v
 
 compactValueToValue :: Crypto crypto => CompactValue crypto -> Value crypto

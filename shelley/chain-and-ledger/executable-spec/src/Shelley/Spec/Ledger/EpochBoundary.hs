@@ -36,7 +36,7 @@ import           Shelley.Spec.Ledger.Keys (KeyHash)
 import           Shelley.Spec.Ledger.PParams (PParams (..))
 import           Shelley.Spec.Ledger.Slot (SlotNo, (-*))
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential, PoolParams, Ptr, RewardAcnt,
-                     TxOut (..), getRwdCred, getCoin, getAddress)
+                     getRwdCred, getCoin, getAddress)
 import           Shelley.Spec.Ledger.UTxO (UTxO (..))
 
 import           Cardano.Binary (FromCBOR (..), ToCBOR (..), encodeListLen, enforceSize)

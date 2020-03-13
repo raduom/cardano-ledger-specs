@@ -197,14 +197,14 @@ getAddress (UTxOOutPT (UTxOOutP a _ _) _) = a
 -- | get address from UTxO output
 getCoin :: Crypto crypto => UTxOOut crypto -> Coin
 getCoin (UTxOOutND (XOutND   _ v)   _) =
-  getAdaAmount $ Value $ filterWithKey (\k a -> k==adaID) v'
+  getAdaAmount $ Value $ filterWithKey (\k _ -> k==adaID) v'
   where
     Value v' = compactValueToValue v
 getCoin (UTxOOutPT (UTxOOutP _ v _) _) =
-  getAdaAmount $ Value $ filterWithKey (\k a -> k==adaID) v'
+  getAdaAmount $ Value $ filterWithKey (\k _ -> k==adaID) v'
   where
     Value v' = compactValueToValue v
-    
+
 -- |The input of a Tx.
 data TxIn crypto
   = TxIn (TxId crypto) Natural IsFee -- TODO use our own Natural type
