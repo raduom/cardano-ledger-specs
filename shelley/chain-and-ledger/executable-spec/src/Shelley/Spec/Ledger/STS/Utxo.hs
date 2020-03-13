@@ -43,6 +43,8 @@ import           Shelley.Spec.Ledger.TxData (getValue)
 import           Shelley.Spec.Ledger.UTxO
 import           Shelley.Spec.Ledger.Value
 
+import           Shelley.Spec.Ledger.Value
+
 data UTXO crypto
 
 data UtxoEnv crypto

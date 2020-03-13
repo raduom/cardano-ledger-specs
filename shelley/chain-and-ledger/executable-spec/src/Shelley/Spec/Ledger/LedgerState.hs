@@ -127,7 +127,6 @@ import           Shelley.Spec.Ledger.Scripts (countMSigNodes)
 
 import           Shelley.Spec.Ledger.Value
 import           Shelley.Spec.Ledger.CostModel
-import           Shelley.Spec.Ledger.Scripts
 
 -- | Representation of a list of pairs of key pairs, e.g., pay and stake keys
 type KeyPairs crypto = [(KeyPair 'Regular crypto, KeyPair 'Regular crypto)]
@@ -568,17 +567,17 @@ validInputs tx u =
 txsize :: forall crypto . (Crypto crypto) => Tx crypto-> Integer
 txsize (Tx
           txbody
-          vKeySigs
-          msigScripts
-          md) =
+          wits
+          md
+          _) =
   iSize + oSize + cSize + wSize + feeSize + ttlSize + uSize + mdhSize + witnessSize + mdSize
   where
     TxBody ins outs cs ws _ _ up mdh = txbody
     -- vkey signatures
-    signatures = Set.size vKeySigs
+    signatures = Set.size $ wits ^. witnessVKeySet
 
     -- multi-signature scripts
-    scriptNodes = Map.foldl (+) 0 (Map.map countMSigNodes msigScripts)
+    scriptNodes = 0 -- TODO fix this Map.foldl (+) 0 (Set.map countMSigNodes (wits ^. scripts))
 
     -- The abstract size of the witnesses is caclucated as the sum of the sizes
     -- of the vkey witnesses (vkey + signature size) and the size of the
@@ -589,7 +588,7 @@ txsize (Tx
       (fromIntegral signatures) * ((toInteger . abstractSizeVKey) (Proxy :: Proxy (DSIGN crypto)) +
                                     (toInteger . abstractSizeSig) (Proxy :: Proxy (DSIGN crypto))) +
       hashObj * (fromIntegral scriptNodes) +
-      smallArray + labelSize + mapPrefix + (hashObj * fromIntegral (Map.size msigScripts))
+      smallArray + labelSize + mapPrefix + (hashObj * fromIntegral (Set.size $ wits ^. scripts))
 
     -- hash
     hl = toInteger $ byteCount (Proxy :: Proxy (HASH crypto))
@@ -696,12 +695,13 @@ validFee pc tx =
 -- |Compute the lovelace which are created by the transaction
 produced
   :: (Crypto crypto)
-  => PParams
+  => SlotNo
+  -> PParams
   -> StakePools crypto
   -> TxBody crypto
   -> Value crypto
-produced pp stakePools tx =
-    balance (txouts tx) + coinToValue (_txfee tx + totalDeposits pp stakePools (toList $ _certs tx))
+produced s pp stakePools tx =
+    balance (txouts s tx) + coinToValue (_txfee tx + totalDeposits pp stakePools (toList $ _certs tx))
 
 -- |Compute the key deregistration refunds in a transaction
 keyRefunds
@@ -784,19 +784,20 @@ consumed pp u stakeKeys tx =
 -- in an acceptable way by a transaction.
 preserveBalance
   :: (Crypto crypto)
-  => StakePools crypto
+  => SlotNo
+  -> StakePools crypto
   -> StakeCreds crypto
   -> PParams
   -> TxBody crypto
   -> UTxOState crypto
   -> Validity
-preserveBalance stakePools stakeKeys pp tx u =
+preserveBalance s stakePools stakeKeys pp tx u =
   if destroyed' == created'
     then Valid
     else Invalid [ValueNotConserved (toValBST destroyed') (toValBST created')]
   where
     destroyed' = consumed pp (_utxo u) stakeKeys tx
-    created' = produced pp stakePools tx
+    created' = produced s pp stakePools tx
 
 -- |Determine if the reward witdrawals correspond
 -- to the rewards in the ledger state
@@ -828,9 +829,10 @@ witsVKeyNeeded utxo' tx@(Tx txbody _ _ _) _genDelegs =
     inputAuthors = undiscriminateKeyHash `Set.map` Set.foldr insertHK Set.empty (_inputs txbody)
     insertHK txin hkeys =
       case txinLookup txin utxo' of
-        Just to -> Set.insert pay hkeys
+        Just ot -> Set.insert pay hkeys where
+          (AddrBase (KeyHashObj pay) _) = getAddress ot
         _                               -> hkeys
-    (AddrBase (KeyHashObj pay) _) = getAddress to
+
     wdrlAuthors =
       Set.fromList $ extractKeyHash $ map getRwdCred (Map.keys (unWdrl $ _wdrls txbody))
     owners = foldl Set.union Set.empty
@@ -857,7 +859,7 @@ verifiedWits
   => Tx crypto
   -> Validity
 verifiedWits (Tx tx wits _ _) =
-  if all (verifyWitVKey tx) wits
+  if all (verifyWitVKey tx) (wits ^. witnessVKeySet)
     then Valid
     else Invalid [InvalidWitness]
 
@@ -877,7 +879,7 @@ enoughWits tx@(Tx _ wits _ _) d' u =
     then Valid
     else Invalid [MissingWitnesses]
   where
-    signers = Set.map witKeyHash wits
+    signers = Set.map witKeyHash (wits ^. witnessVKeySet)
 
 validRuleUTXO
   :: (Crypto crypto)
@@ -961,7 +963,8 @@ depositPoolChange ls pp tx = (currentPool + txDeposits) - txRefunds
 -- |Apply a transaction body as a state transition function on the ledger state.
 applyTxBody
   :: (Crypto crypto)
-  => LedgerState crypto
+  => SlotNo
+  -> LedgerState crypto
   -> PParams
   -> TxBody crypto
   -> LedgerState crypto
