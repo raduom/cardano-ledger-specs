@@ -100,17 +100,15 @@ import           Shelley.Spec.Ledger.Keys (AnyKeyHash, GenDelegs (..), GenKeyHas
                      KeyDiscriminator (..), KeyHash, KeyPair, Signable, hash,
                      undiscriminateKeyHash)
 import qualified Shelley.Spec.Ledger.MetaData as MD
-import           Shelley.Spec.Ledger.PParams (PParams (..), activeSlotCoeff, activeSlotVal, d,
-                     emptyPParams, keyDecayRate, keyDeposit, keyMinRefund, minfeeA, minfeeB, prices)
+import           Shelley.Spec.Ledger.PParams (PParams (..), activeSlotVal, emptyPParams)
 import           Shelley.Spec.Ledger.Slot (Duration (..), EpochNo (..), SlotNo (..), epochInfoEpoch,
                      epochInfoFirst, epochInfoSize, (+*), (-*))
-import           Shelley.Spec.Ledger.Tx (Tx (..), body, certs, extractGenKeyHash, extractKeyHash, txwits)
+import           Shelley.Spec.Ledger.Tx (Tx (..), extractGenKeyHash, extractKeyHash)
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix,
                      MIRCert (..), PoolCert (..), PoolParams (..), Ptr (..), RewardAcnt (..),
-                     TxBody (..), UTxOIn (..), UTxOOut (..),
-                     TxId (..), TxOut (..), Wdrl (..), witKeyHash, getRwdCred,
-                     getAddress, ttl, scripts, exunits, txfee, forge,
-                     wdrls, witnessVKeySet, poolOwners, poolPledge, poolRAcnt)
+                     TxBody (..), UTxOIn (..), PoolMetaData (..), TxWitness(..),
+                     TxId (..), TxOut (..), Wdrl (..), Url(..), witKeyHash, getRwdCred,
+                     getAddress)
 
 import           Shelley.Spec.Ledger.Updates (AVUpdate (..), Mdt (..), PPUpdate (..), Update (..),
                      UpdateState (..), apps, emptyUpdate, emptyUpdateState)
@@ -126,7 +124,6 @@ import           Shelley.Spec.Ledger.Delegation.PoolParams (poolSpec)
 import           Ledger.Core (dom, (∪), (∪+), (⋪), (▷), (◁))
 import           Shelley.Spec.Ledger.BaseTypes (Globals (..), ShelleyBase, UnitInterval,
                      intervalValue, mkUnitInterval, text64Size)
-import           Shelley.Spec.Ledger.Scripts
 
 
 import           Shelley.Spec.Ledger.Value
@@ -537,10 +534,10 @@ txsize (Tx
   iSize + oSize + cSize + wSize + feeSize + ttlSize + uSize + mdhSize + witnessSize + mdSize
   where
     -- vkey signatures
-    signatures = Set.size $ wits ^. witnessVKeySet
+    signatures = Set.size $ _witnessVKeySet wits
 
     -- multi-signature scripts
-    scriptNodes = 0 -- TODO fix this Map.foldl (+) 0 (Set.map countMSigNodes (wits ^. scripts))
+    scriptNodes = 0 -- TODO fix this Map.foldl (+) 0 (Map.map countMSigNodes msigScripts)
 
     -- The abstract size of the witnesses is caclucated as the sum of the sizes
     -- of the vkey witnesses (vkey + signature size) and the size of the
@@ -551,7 +548,7 @@ txsize (Tx
       (fromIntegral signatures) * ((toInteger . abstractSizeVKey) (Proxy :: Proxy (DSIGN crypto)) +
                                     (toInteger . abstractSizeSig) (Proxy :: Proxy (DSIGN crypto))) +
       hashObj * (fromIntegral scriptNodes) +
-      smallArray + labelSize + mapPrefix + (hashObj * fromIntegral (Set.size $ wits ^. scripts))
+      smallArray + labelSize + mapPrefix + (hashObj * fromIntegral (Set.size $ _scripts wits))
 
     -- hash
     hl = toInteger $ byteCount (Proxy :: Proxy (HASH crypto))
@@ -644,8 +641,8 @@ txsize (Tx
 
 -- |Minimum fee calculation
 minfee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Coin
-minfee pc tx = (Coin $ pc ^. minfeeA * txsize tx + fromIntegral (pc ^. minfeeB))
-  + scriptFee (toInteger $ size $ tx ^. txwits ^. scripts) (pc ^. prices) (tx ^. body ^. exunits)
+minfee pp tx = (Coin $ _minfeeA pp * txsize tx + fromIntegral (_minfeeB pp))
+  + scriptFee (toInteger $ size $ _scripts $ _txwits tx) (_prices pp) (_exunits $ _body tx)
 
 -- |Determine if the fee is large enough
 validFee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Validity crypto
@@ -664,15 +661,9 @@ produced
   -> PParams
   -> StakePools crypto
   -> TxBody crypto
-<<<<<<< HEAD
-  -> Coin
-produced pp stakePools tx =
-    balance (txouts tx) + _txfee tx + totalDeposits pp stakePools (toList $ _certs tx)
-=======
   -> Value crypto
 produced s pp stakePools tx =
-    balance (txouts s tx) + coinToValue (tx ^. txfee + totalDeposits pp stakePools (toList $ tx ^. certs))
->>>>>>> LedgerState OK
+    balance (txouts s tx) + coinToValue (_txfee tx + totalDeposits pp stakePools (toList $ _certs tx))
 
 -- |Compute the key deregistration refunds in a transaction
 keyRefunds
@@ -746,7 +737,7 @@ consumed
   -> TxBody crypto
   -> Value crypto
 consumed pp u stakeKeys tx =
-    tx ^. forge + balance (txins tx ◁ u) + coinToValue (refunds + withdrawals)
+    _forge tx + balance (txins tx ◁ u) + coinToValue (refunds + withdrawals)
   where
     refunds = keyRefunds pp stakeKeys tx
     withdrawals = sum . unWdrl $ _wdrls tx
@@ -767,13 +758,8 @@ preserveBalance s stakePools stakeKeys pp tx u =
     then Valid
     else Invalid [ValueNotConserved destroyed' created']
   where
-<<<<<<< HEAD
     destroyed' = consumed pp (_utxo u) stakeKeys tx
-    created' = produced pp stakePools tx
-=======
-    destroyed' = consumed pp (u ^. utxo) stakeKeys tx
     created' = produced s pp stakePools tx
->>>>>>> LedgerState OK
 
 -- |Determine if the reward witdrawals correspond
 -- to the rewards in the ledger state
@@ -790,8 +776,7 @@ correctWithdrawals accs withdrawals =
 -- given transaction. This set consists of the txin owners,
 -- certificate authors, and withdrawal reward accounts.
 witsVKeyNeeded
-  :: (Crypto crypto)
-  => UTxO crypto
+  :: UTxO crypto
   -> Tx crypto
   -> GenDelegs crypto
   -> Set (AnyKeyHash crypto)
@@ -835,7 +820,7 @@ verifiedWits
   => Tx crypto
   -> Validity crypto
 verifiedWits (Tx tx wits _ _) =
-  if all (verifyWitVKey tx) (wits ^. witnessVKeySet)
+  if all (verifyWitVKey tx) (_witnessVKeySet wits)
     then Valid
     else Invalid [InvalidWitness]
 
@@ -855,7 +840,7 @@ enoughWits tx@(Tx _ wits _ _) d' u =
     then Valid
     else Invalid [MissingWitnesses]
   where
-    signers = Set.map witKeyHash (wits ^. witnessVKeySet)
+    signers = Set.map witKeyHash (_witnessVKeySet wits)
 
 validRuleUTXO
   :: (Crypto crypto)
@@ -872,13 +857,8 @@ validRuleUTXO accs stakePools stakeKeys pc slot tx u =
                        <> current txb slot
                        <> validNoReplay txb
                        <> validFee pc tx
-<<<<<<< HEAD
-                       <> preserveBalance stakePools stakeKeys pc txb u
-                       <> correctWithdrawals accs (unWdrl $ _wdrls txb)
-=======
                        <> preserveBalance slot stakePools stakeKeys pc txb u
-                       <> correctWithdrawals accs (unWdrl $ txb ^. wdrls)
->>>>>>> LedgerState OK
+                       <> correctWithdrawals accs (unWdrl $ _wdrls txb)
   where txb = _body tx
 
 validRuleUTXOW
@@ -948,24 +928,16 @@ applyTxBody
   -> PParams
   -> TxBody crypto
   -> LedgerState crypto
-<<<<<<< HEAD
-applyTxBody ls pp tx = ls
+applyTxBody s ls pp tx = ls
   {
     _utxoState = us
-      { _utxo = txins tx ⋪ (_utxo us) ∪ txouts tx
+      { _utxo = txins tx ⋪ (_utxo us) ∪ txouts s tx
       , _deposited = depositPoolChange ls pp tx
       , _fees = (_txfee tx) + (_fees . _utxoState $ ls)
       }
   , _delegationState = dels
       { _dstate = dst {_rewards = newAccounts}}
   }
-=======
-applyTxBody s ls pp tx =
-    ls & utxoState %~ flip (applyUTxOUpdate s) tx
-       & utxoState . deposited .~ depositPoolChange ls pp tx
-       & utxoState . fees .~ (tx ^. txfee) + (ls ^. utxoState . fees)
-       & delegationState . dstate . rewards .~ newAccounts
->>>>>>> LedgerState OK
   where
     dels = _delegationState ls
     dst = _dstate dels
@@ -982,17 +954,6 @@ reapRewards dStateRewards withdrawals =
     Map.mapWithKey removeRewards dStateRewards
     where removeRewards k v = if k `Map.member` withdrawals then Coin 0 else v
 
-<<<<<<< HEAD
-=======
-applyUTxOUpdate
-  :: (Crypto crypto)
-  => SlotNo
-  -> UTxOState crypto
-  -> TxBody crypto
-  -> UTxOState crypto
-applyUTxOUpdate s u tx = u & utxo .~ txins tx ⋪ (u ^. utxo) ∪ txouts s tx
-
->>>>>>> LedgerState OK
 ---------------------------------
 -- epoch boundary calculations --
 ---------------------------------

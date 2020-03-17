@@ -190,7 +190,7 @@ getValue (UTxOOutND (XOutND   _ v)   _) = compactValueToValue v
 getValue (UTxOOutPT (UTxOOutP _ v _) _) = compactValueToValue v
 
 -- | get address from UTxO output
-getAddress :: Crypto crypto => UTxOOut crypto -> Addr crypto
+getAddress :: UTxOOut crypto -> Addr crypto
 getAddress (UTxOOutND (XOutND   a _)   _) = a
 getAddress (UTxOOutPT (UTxOOutP a _ _) _) = a
 
@@ -1082,13 +1082,3 @@ instance Relation (StakeCreds crypto) where
   (StakeCreds stkCreds) ▷>= vmin = StakeCreds $ stkCreds ▷>= vmin
 
   size (StakeCreds stkCreds) = size stkCreds
-
--- Lenses
-
--- makeLenses ''TxBody
---
--- makeLenses ''Delegation
---
--- makeLenses ''PoolParams
---
--- makeLenses ''TxWitness

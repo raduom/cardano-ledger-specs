@@ -43,7 +43,7 @@ import           Data.Foldable (toList)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Maybe as Maybe
-import           Data.Set (Set, map)
+import           Data.Set (Set)
 import qualified Data.Set as Set
 
 import           Cardano.Ledger.Shelley.Crypto
@@ -54,23 +54,16 @@ import           Shelley.Spec.Ledger.Keys (AnyKeyHash, KeyDiscriminator (..), Ke
 import           Shelley.Spec.Ledger.PParams (PParams (..))
 import           Shelley.Spec.Ledger.Tx (Tx (..))
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), pattern DeRegKey,
-<<<<<<< HEAD
-                     pattern Delegate, pattern Delegation, PoolCert (..), PoolParams (..),
-                     TxBody (..), TxId (..), TxIn (..), TxOut (..), Wdrl (..),
-                     WitVKey (..), getRwdCred)
-=======
-                     pattern Delegate, pattern Delegation, PoolCert (..), TxBody (..),
+                     pattern Delegate, pattern Delegation, PoolCert (..),  PoolParams (..), TxBody (..),
                      UTxOIn (..), UTxOOut (..), OutND (..), TxOutP (..), UTxOOutP (..), XOutND (..),
                      TxId (..), TxIn (..), TxOut (..), Wdrl (..), WitVKey (..), getRwdCred, utxoref,
-                     outputs, poolPubKey, txUpdate, getValue, getAddress)
->>>>>>> working on LedgerState
+                     getValue, getAddress)
 import           Shelley.Spec.Ledger.Updates (Update)
 import           Shelley.Spec.Ledger.Slot (SlotNo (..))
 
 import           Data.Coerce (coerce)
 import           Shelley.Spec.Ledger.Delegation.Certificates (DCert (..), StakePools (..), dvalue,
                      requiresVKeyWitness)
-import           Shelley.Spec.Ledger.Scripts
 
 import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Value
@@ -139,7 +132,7 @@ txouts
   -> TxBody crypto
   -> UTxO crypto
 txouts s tx = UTxO $
-  Map.fromList [(UTxOIn transId idx, mkUTxOout s out) | (out, idx) <- zip (toList $ tx ^. outputs) [0..]]
+  Map.fromList [(UTxOIn transId idx, mkUTxOout s out) | (out, idx) <- zip (toList $ _outputs tx) [0..]]
   where
     transId = txid tx
 
@@ -241,8 +234,7 @@ scriptCred (ScriptHashObj hs) = Just hs
 -- | Computes the set of script hashes required to unlock the transcation inputs
 -- and the withdrawals.
 scriptsNeeded
-  :: Crypto crypto
-  => UTxO crypto
+  :: UTxO crypto
   -> Tx crypto
   -> Set (ScriptHash crypto)
 scriptsNeeded u tx =
@@ -258,8 +250,7 @@ scriptsNeeded u tx =
 -- | Compute the subset of inputs of the set 'txInps' for which each input is
 -- locked by a script in the UTxO 'u'.
 txinsScript
-  :: Crypto crypto
-  => Set (UTxOIn crypto)
+  :: Set (UTxOIn crypto)
   -> UTxO crypto
   -> Set (UTxOIn crypto)
 txinsScript txInps (UTxO u) =
