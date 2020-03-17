@@ -16,11 +16,6 @@ module Shelley.Spec.Ledger.PParams
   , PParams
   , PPHash
   , emptyPParams
-  -- lenses
-  , prices
-  , maxTxExUnits
-  , maxBlockExUnits
-  , costmdls
   , ActiveSlotCoeff
   , mkActiveSlotCoeff
   , activeSlotVal
@@ -305,8 +300,6 @@ instance FromCBOR PParams
       <*> fromCBOR
       <*> fromCBOR
 
-makeLenses ''PParams
-
 -- | Returns a basic "empty" `PParams` structure with all zero values.
 emptyPParams :: PParams
 emptyPParams =
@@ -330,7 +323,7 @@ emptyPParams =
      , _activeSlotCoeff = mkActiveSlotCoeff interval0
      , _d = interval0
      , _extraEntropy = NeutralNonce
-     , _protocolVersion = (0, 0)
+     , _protocolVersion = ProtVer 0 0
      , _costmdls = defaultModels
      , _prices = defaultPrices
      , _maxTxExUnits = defaultUnits

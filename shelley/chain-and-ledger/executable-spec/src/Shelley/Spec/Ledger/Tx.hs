@@ -55,26 +55,23 @@ module Shelley.Spec.Ledger.Tx
 where
 
 
-import           Shelley.Spec.Ledger.BaseTypes (StrictMaybe, invalidKey, maybeToStrictMaybe, strictMaybeToMaybe)
+import           Shelley.Spec.Ledger.BaseTypes (StrictMaybe, invalidKey, maybeToStrictMaybe, strictMaybeToMaybe,
+                 Hash, hash)
 import           Shelley.Spec.Ledger.Keys (AnyKeyHash, GenKeyHash, undiscriminateKeyHash)
 
 import           Cardano.Binary (Annotator (..), Decoder, FromCBOR (fromCBOR), ToCBOR (toCBOR),
                      annotatorSlice, decodeWord, encodeListLen, encodeMapLen, encodePreEncoded,
-                     encodeWord, serialize, serializeEncoding, withSlice)
+                     encodeWord, serialize, serializeEncoding, withSlice, decodeListLenOf, encodeWord)
 import           Cardano.Prelude (AllowThunksIn (..), LByteString, NoUnexpectedThunks (..),
                      catMaybes)
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Foldable (fold)
 import           Data.Map.Strict (Map)
-=======
-import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR), decodeWord,
                      encodeListLen, encodeWord, encodeMapLen, decodeListLenOf)
 import           Cardano.Crypto.Hash (hashWithSerialiser)
 import           Cardano.Ledger.Shelley.Crypto
 import           Cardano.Prelude (NoUnexpectedThunks (..))
-import qualified Data.List as List (concat, concatMap, permutations)
 import           Data.Map.Strict (Map, insert, empty)
->>>>>>> changes from branch 2
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (mapMaybe)
 import           Data.Set (Set)

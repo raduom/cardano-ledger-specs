@@ -10,7 +10,6 @@
 module Shelley.Spec.Ledger.Scripts
   where
 
-
 import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR), decodeWord,
                      encodeListLen, encodeWord, encodeWord8, matchSize, decodeListLen)
 import           Shelley.Spec.Ledger.Serialization (decodeList, encodeFoldable)
@@ -25,6 +24,7 @@ import           Shelley.Spec.Ledger.BaseTypes (invalidKey)
 import           Shelley.Spec.Ledger.Crypto (Crypto (..), HASH)
 import           Shelley.Spec.Ledger.Keys (AnyKeyHash, pattern AnyKeyHash, Hash)
 import           Shelley.Spec.Ledger.Serialization (decodeList, encodeFoldable)
+
 
 import           Shelley.Spec.Ledger.CostModel
 
@@ -124,7 +124,12 @@ countMSigNodes (RequireAllOf msigs) = 1 + sum (map countMSigNodes msigs)
 countMSigNodes (RequireAnyOf msigs) = 1 + sum (map countMSigNodes msigs)
 countMSigNodes (RequireMOf _ msigs) = 1 + sum (map countMSigNodes msigs)
 
+newtype DataHash crypto = DataHash (Hash (HASH crypto) Data)
+  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord)
 
+
+deriving instance Crypto crypto => ToCBOR (DataHash crypto)
+deriving instance Crypto crypto => FromCBOR (DataHash crypto)
 
 -- | Hashes native multi-signature script, appending the 'nativeMultiSigTag' in
 -- front and then calling the script CBOR function.
@@ -135,6 +140,10 @@ hashAnyScript
 hashAnyScript (MultiSigScript msig) =
   ScriptHash $ hashWithSerialiser (\x -> encodeWord8 nativeMultiSigTag
                                           <> toCBOR x) (MultiSigScript msig)
+hashAnyScript (PlutusScriptV1 msig) =
+  ScriptHash $ hashWithSerialiser (\x -> encodeWord8 plcV1
+                                          <> toCBOR x) (PlutusScriptV1 msig)
+
 
 -- | Get one possible combination of keys for multi signature script
 getKeyCombination :: MultiSig crypto -> [AnyKeyHash crypto]
@@ -202,6 +211,8 @@ instance (Crypto crypto) =>
         msigs <- decodeList fromCBOR
         pure $ RequireMOf m msigs
       k -> invalidKey k
+
+
 
 instance (Crypto crypto) =>
   ToCBOR (Script crypto) where

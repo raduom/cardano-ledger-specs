@@ -103,7 +103,7 @@ import           Shelley.Spec.Ledger.PParams (PParams, ProposedPPUpdates (..), U
                      _keyDecayRate, _keyDeposit, _keyMinRefund, _minfeeA, _minfeeB, _rho, _tau)
 import           Shelley.Spec.Ledger.Slot (Duration (..), EpochNo (..), SlotNo (..), epochInfoEpoch,
                      epochInfoFirst, epochInfoSize, (+*), (-*))
-import           Shelley.Spec.Ledger.Tx (Tx (..), body, certs, extractGenKeyHash, extractKeyHash, txwits)
+import           Shelley.Spec.Ledger.Tx (Tx (..), extractGenKeyHash, extractKeyHash)
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix,
                      MIRCert (..), PoolCert (..), PoolMetaData (..), PoolParams (..), Ptr (..),
                      RewardAcnt (..), TxBody (..), TxId (..), TxIn (..), TxOut (..), Url (..), UTxOOut(..),
@@ -574,10 +574,10 @@ txsize (Tx
   where
     TxBody ins outs cs ws _ _ up mdh = txbody
     -- vkey signatures
-    signatures = Set.size $ wits ^. witnessVKeySet
+    signatures = Set.size $ _witnessVKeySet wits
 
     -- multi-signature scripts
-    scriptNodes = 0 -- TODO fix this Map.foldl (+) 0 (Set.map countMSigNodes (wits ^. scripts))
+    scriptNodes = 0 -- TODO fix this Map.foldl (+) 0 (Map.map countMSigNodes msigScripts)
 
     -- The abstract size of the witnesses is caclucated as the sum of the sizes
     -- of the vkey witnesses (vkey + signature size) and the size of the
@@ -588,7 +588,7 @@ txsize (Tx
       (fromIntegral signatures) * ((toInteger . abstractSizeVKey) (Proxy :: Proxy (DSIGN crypto)) +
                                     (toInteger . abstractSizeSig) (Proxy :: Proxy (DSIGN crypto))) +
       hashObj * (fromIntegral scriptNodes) +
-      smallArray + labelSize + mapPrefix + (hashObj * fromIntegral (Set.size $ wits ^. scripts))
+      smallArray + labelSize + mapPrefix + (hashObj * fromIntegral (Set.size $ _scripts wits))
 
     -- hash
     hl = toInteger $ byteCount (Proxy :: Proxy (HASH crypto))
@@ -814,8 +814,7 @@ correctWithdrawals accs withdrawals =
 -- given transaction. This set consists of the txin owners,
 -- certificate authors, and withdrawal reward accounts.
 witsVKeyNeeded
-  :: Crypto crypto
-  => UTxO crypto
+  :: UTxO crypto
   -> Tx crypto
   -> GenDelegs crypto
   -> Set (AnyKeyHash crypto)
@@ -859,7 +858,7 @@ verifiedWits
   => Tx crypto
   -> Validity
 verifiedWits (Tx tx wits _ _) =
-  if all (verifyWitVKey tx) (wits ^. witnessVKeySet)
+  if all (verifyWitVKey tx) (_witnessVKeySet wits)
     then Valid
     else Invalid [InvalidWitness]
 
@@ -879,7 +878,7 @@ enoughWits tx@(Tx _ wits _ _) d' u =
     then Valid
     else Invalid [MissingWitnesses]
   where
-    signers = Set.map witKeyHash (wits ^. witnessVKeySet)
+    signers = Set.map witKeyHash (_witnessVKeySet wits)
 
 validRuleUTXO
   :: (Crypto crypto)
@@ -896,7 +895,7 @@ validRuleUTXO accs stakePools stakeKeys pc slot tx u =
                        <> current txb slot
                        <> validNoReplay txb
                        <> validFee pc tx
-                       <> preserveBalance stakePools stakeKeys pc txb u
+                       <> preserveBalance slot stakePools stakeKeys pc txb u
                        <> correctWithdrawals accs (unWdrl $ _wdrls txb)
   where txb = _body tx
 
@@ -968,10 +967,10 @@ applyTxBody
   -> PParams
   -> TxBody crypto
   -> LedgerState crypto
-applyTxBody ls pp tx = ls
+applyTxBody s ls pp tx = ls
   {
     _utxoState = us
-      { _utxo = txins tx ⋪ (_utxo us) ∪ txouts tx
+      { _utxo = txins tx ⋪ (_utxo us) ∪ txouts s tx
       , _deposited = depositPoolChange ls pp tx
       , _fees = (_txfee tx) + (_fees . _utxoState $ ls)
       }
