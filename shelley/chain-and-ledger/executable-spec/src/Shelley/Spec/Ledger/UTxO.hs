@@ -43,7 +43,7 @@ import           Data.Foldable (toList)
 import           Data.Map.Strict (Map, keys)
 import qualified Data.Map.Strict as Map
 import qualified Data.Maybe as Maybe
-import           Data.Set (Set, map)
+import           Data.Set (Set)
 import qualified Data.Set as Set
 
 import           Cardano.Ledger.Shelley.Crypto
@@ -75,8 +75,6 @@ import           Shelley.Spec.Ledger.Delegation.Certificates (DCert (..), StakeP
 import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Value
 
-import           Shelley.Spec.Ledger.Scripts
-import           Shelley.Spec.Ledger.Value
 
 -- |The unspent transaction outputs.
 newtype UTxO crypto
@@ -142,7 +140,7 @@ txouts
   -> TxBody crypto
   -> UTxO crypto
 txouts s tx = UTxO $
-  Map.fromList [(UTxOIn transId idx, mkUTxOout s out) | (out, idx) <- zip (toList $ tx ^. outputs) [0..]]
+  Map.fromList [(UTxOIn transId idx, mkUTxOout s out) | (out, idx) <- zip (toList $ _outputs tx) [0..]]
   where
     transId = txid tx
 
@@ -244,8 +242,7 @@ scriptCred (ScriptHashObj hs) = Just hs
 -- and the withdrawals.
 -- now runs the forging scripts too
 scriptsNeeded
-  :: Crypto crypto
-  => UTxO crypto
+  :: UTxO crypto
   -> Tx crypto
   -> Set (ScriptHash crypto)
 scriptsNeeded u tx =
@@ -263,8 +260,7 @@ scriptsNeeded u tx =
 -- | Compute the subset of inputs of the set 'txInps' for which each input is
 -- locked by a script in the UTxO 'u'.
 txinsScript
-  :: Crypto crypto
-  => Set (UTxOIn crypto)
+  :: Set (UTxOIn crypto)
   -> UTxO crypto
   -> Set (UTxOIn crypto)
 txinsScript txInps (UTxO u) =

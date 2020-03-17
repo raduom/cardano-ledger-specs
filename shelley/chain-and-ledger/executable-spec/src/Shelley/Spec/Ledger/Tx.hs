@@ -14,18 +14,6 @@ module Shelley.Spec.Ledger.Tx
   , TxOut(..)
   , TxIn(..)
   , TxId(..)
-  , txUpdate
-  , inputs
-  , outputs
-  , certs
-  , wdrls
-  , txfee
-  , ttl
-  , body
-  , metadata
-  , txwits
-  -- , witnessVKeySet
-  -- , witnessMSigMap
     -- witness data
   , WitVKey(..)
   , MultiSignatureScript
@@ -37,6 +25,7 @@ module Shelley.Spec.Ledger.Tx
   , extractGenKeyHash
   , getKeyCombinations
   , getKeyCombination
+  -- TODO : these things below
   -- , txToCBORWits
   -- , cborWitsToTx
   )
@@ -45,12 +34,11 @@ where
 
 import           Shelley.Spec.Ledger.Keys (AnyKeyHash, GenKeyHash, undiscriminateKeyHash, Hash, hash)
 
-import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR), decodeWord,
+import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR), decodeWord, enforceSize,
                      encodeListLen, encodeWord, encodeMapLen, decodeListLenOf)
 import           Cardano.Crypto.Hash (hashWithSerialiser)
 import           Cardano.Ledger.Shelley.Crypto
 import           Cardano.Prelude (NoUnexpectedThunks (..))
-import qualified Data.List as List (concat, concatMap, permutations)
 import           Data.Map.Strict (Map, insert, empty)
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (mapMaybe)
@@ -62,12 +50,7 @@ import           Shelley.Spec.Ledger.Scripts
 
 import           Shelley.Spec.Ledger.Serialization (CborSeq (..), decodeMapContents)
 import           Shelley.Spec.Ledger.TxData (Credential (..), TxBody (..),
-                     TxId (..), TxIn (..), TxOut (..), WitVKey (..), TxWitness (..), certs, inputs,
-                     outputs, ttl, txUpdate, txfee, wdrls, witKeyHash)
-                     -- import           Shelley.Spec.Ledger.Serialization (CborSeq (..), decodeMapContents)
-                     -- import           Shelley.Spec.Ledger.TxData (Credential (..), MultiSig (..), Script (..),
-                     --                      ScriptHash (..), TxBody (..), TxId (..), TxIn (..), TxOut (..), WitVKey (..),
-                     --                      nativeMultiSigTag, witKeyHash)
+                     TxId (..), TxIn (..), TxOut (..), WitVKey (..), TxWitness (..), witKeyHash)
 
 -- |A fully formed transaction.
 data Tx crypto
