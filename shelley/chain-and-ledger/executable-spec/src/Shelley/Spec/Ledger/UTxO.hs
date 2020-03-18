@@ -55,7 +55,7 @@ import           Shelley.Spec.Ledger.PParams (PParams (..))
 import           Shelley.Spec.Ledger.Tx (Tx (..))
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), pattern DeRegKey,
                      pattern Delegate, pattern Delegation, PoolCert (..),  PoolParams (..), TxBody (..),
-                     UTxOIn (..), UTxOOut (..), OutND (..), TxOutP (..), UTxOOutP (..), XOutND (..),
+                     UTxOIn (..), UTxOOut (..), OutND (..), TxOutP (..), UTxOOutP (..), XOutND (..), CurItem(..),
                      TxId (..), TxIn (..), TxOut (..), Wdrl (..), WitVKey (..), getRwdCred, utxoref,
                      getValue, getAddress)
 import           Shelley.Spec.Ledger.Updates (Update)
@@ -115,6 +115,10 @@ txins
   :: TxBody crypto
   -> Set (UTxOIn crypto)
 txins txb = Set.map utxoref (_inputs txb)
+
+-- | TODO get the for-fee inputs
+-- txinputs_vf :: TxBody crypto -> !(Set (TxId, Ix))
+-- txinputs_vf txb = Set.map Set.insert () Set.empty
 
 -- | makes a UTxO output from a Tx output
 mkUTxOout :: Crypto crypto
@@ -261,3 +265,8 @@ txinsScript txInps (UTxO u) =
                                  AddrEnterprise (ScriptHashObj _) -> True
                                  AddrPtr (ScriptHashObj _) _      -> True
                                  _                                -> False) u)
+
+
+-- | TODO : make validation data to pass to Plutus validator
+validationData :: UTxO -> Tx -> CurItem -> Data
+validationData _ _ _ = 1
