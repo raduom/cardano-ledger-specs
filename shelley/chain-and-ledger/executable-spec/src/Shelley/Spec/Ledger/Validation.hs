@@ -11,7 +11,7 @@ import           Shelley.Spec.Ledger.Value
 
 -- |Validation errors represent the failures of a transaction to be valid
 -- for a given ledger state.
-data ValidationError =
+data ValidationError crypto =
   -- | The transaction inputs are not valid.
     BadInputs
   -- | The transaction has expired
@@ -42,17 +42,17 @@ data ValidationError =
   | UnknownValidationError
     deriving (Show, Eq, Generic)
 
-instance NoUnexpectedThunks ValidationError
+instance NoUnexpectedThunks (ValidationError crypto)
 
 -- |The validity of a transaction, where an invalid transaction
 -- is represented by list of errors.
-data Validity = Valid | Invalid [ValidationError] deriving (Show, Eq)
+data Validity crypto = Valid | Invalid [(ValidationError crypto)] deriving (Show, Eq)
 
-instance Semigroup Validity where
+instance Semigroup (Validity crypto) where
   Valid <> b                 = b
   a <> Valid                 = a
   (Invalid a) <> (Invalid b) = Invalid (a ++ b)
 
-instance Monoid Validity where
+instance Monoid (Validity crypto) where
   mempty = Valid
   mappend = (<>)
