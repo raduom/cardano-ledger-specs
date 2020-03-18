@@ -174,6 +174,11 @@ utxoInductive = do
   all (adaID /=) cids  ?! ForgingAda
 
 
+  let (Value vls) = _forge txb
+  let cids = Map.keys vls
+  all (adaID /=) cids  ?! ForgingAda
+
+
   let maxTxSize_ = fromIntegral (_maxTxSize pp)
       txSize_ = txsize tx
   txSize_ <= maxTxSize_ ?! MaxTxSizeUTxO txSize_ maxTxSize_
