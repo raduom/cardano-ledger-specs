@@ -180,7 +180,7 @@ getKeyCombinations (RequireMOf m msigs) =
 newtype Data = Data Integer
   deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord, ToCBOR, FromCBOR)
 
--- | temporary validator always returns true and same amount of resources
+-- | TODO temporary validator always returns true and same amount of resources
 runPLCScript :: CostMod -> ScriptPLC -> [Data] -> ExUnits -> (IsValidating, ExUnits)
 runPLCScript _ _ _ _ = (IsValidating Yes, ExUnits 0 0)
 

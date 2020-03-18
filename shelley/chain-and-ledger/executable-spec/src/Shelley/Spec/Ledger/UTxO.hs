@@ -117,6 +117,10 @@ txins
   -> Set (UTxOIn crypto)
 txins txb = Set.map utxoref (_inputs txb)
 
+-- | TODO get the for-fee inputs
+-- txinputs_vf :: TxBody crypto -> !(Set (TxId, Ix))
+-- txinputs_vf txb = Set.map Set.insert () Set.empty
+
 -- | makes a UTxO output from a Tx output
 mkUTxOout :: Crypto crypto
   => SlotNo
@@ -260,3 +264,8 @@ txinsScript txInps (UTxO u) =
                                case a of
                                  Addr (ScriptHashObj _) _     -> True
                                  _                                -> False) u)
+
+
+-- | TODO : make validation data to pass to Plutus validator
+validationData :: UTxO -> Tx -> CurItem -> Data
+validationData _ _ _ = 1
