@@ -55,11 +55,11 @@ import           Shelley.Spec.Ledger.Keys (AnyKeyHash, KeyDiscriminator (..), Ke
                      sKey, sign, vKey, verify)
 import           Shelley.Spec.Ledger.PParams (PParams, Update)
 import           Shelley.Spec.Ledger.Tx (Tx (..))
-import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), pattern DeRegKey,
-                     pattern Delegate, pattern Delegation, PoolCert (..), PoolParams (..),
-                     TxBody (..), TxId (..), TxIn (..), Wdrl (..), UTxOOut(..),
-                     WitVKey (..), getRwdCred, getAddress, getValue, getAddressTx, getValueTx)
-
+import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), pattern DeRegKey, PoolParams(..),
+                     pattern Delegate, pattern Delegation, PoolCert (..), TxBody (..), CurItem(..),
+                     UTxOIn (..), UTxOOut (..), OutND (..), TxOutP (..), UTxOOutP (..), XOutND (..),
+                     TxId (..), TxIn (..), TxOut (..), Wdrl (..), WitVKey (..), getRwdCred, utxoref,
+                     getValue, getAddress)
 import           Shelley.Spec.Ledger.Slot (SlotNo (..))
 
 import           Data.Coerce (coerce)
@@ -267,5 +267,5 @@ txinsScript txInps (UTxO u) =
 
 
 -- | TODO : make validation data to pass to Plutus validator
-validationData :: UTxO -> Tx -> CurItem -> Data
-validationData _ _ _ = 1
+validationData :: UTxO crypto -> Tx crypto -> CurItem crypto -> Data
+validationData _ _ _ = Data 1

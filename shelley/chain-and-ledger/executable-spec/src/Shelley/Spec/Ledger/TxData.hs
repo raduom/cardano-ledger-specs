@@ -181,13 +181,13 @@ newtype RdmrsHash crypto
 deriving instance Crypto crypto => ToCBOR (RdmrsHash crypto)
 deriving instance Crypto crypto => FromCBOR (RdmrsHash crypto)
 
--- | get value from Tx output
-getValueTx :: TxOut crypto -> Value crypto
-getValueTx (TxOut _ v) = v
-
--- | get address from Tx output
-getAddressTx :: TxOut crypto -> Addr crypto
-getAddressTx (TxOut a _) = a
+-- -- | get value from Tx output
+-- getValueTx :: TxOut crypto -> Value crypto
+-- getValueTx (TxOut _ v) = v
+--
+-- -- | get address from Tx output
+-- getAddressTx :: TxOut crypto -> Addr crypto
+-- getAddressTx (TxOut a _) = a
 
 -- |A unique ID of a transaction, which is computable from the transaction.
 newtype TxId crypto
@@ -259,7 +259,6 @@ data UTxOOut crypto
   = UTxOOutND (XOutND crypto) SlotNo | UTxOOutPT (UTxOOutP crypto) SlotNo
   deriving (Show, Eq, Generic, Ord)
 
-instance NoUnexpectedThunks (UTxOOut crypto)
 
 -- |The output of a Tx  without data value.
 data OutND crypto
@@ -280,12 +279,6 @@ data TxOut crypto
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (TxOut crypto)
-
-
--- |The output of a UTxO.
-data UTxOOut crypto
-  = UTxOOut (Addr crypto) (CompactValue crypto)
-  deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (UTxOOut crypto)
 
@@ -686,24 +679,6 @@ instance
         b <- fromCBOR
         pure $ UTxOOutPT a b
       k -> invalidKey k
-
-instance
-  (Typeable crypto, Crypto crypto)
-  => ToCBOR (UTxOOut crypto)
- where
-  toCBOR (UTxOOut addr value) =
-    encodeListLen (listLen addr + 1)
-      <> toCBORGroup addr
-      <> toCBOR value
-
-instance (Crypto crypto) =>
-  FromCBOR (UTxOOut crypto) where
-  fromCBOR = do
-    n <- decodeListLen
-    addr <- fromCBORGroup
-    b <- fromCBOR
-    matchSize "TxOut" ((fromIntegral . toInteger . listLen) addr + 1) n
-    pure $ UTxOOut addr b
 
 instance
   (Typeable crypto, Crypto crypto)

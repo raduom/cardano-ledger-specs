@@ -104,12 +104,10 @@ import           Shelley.Spec.Ledger.PParams (PParams, ProposedPPUpdates (..), U
 import           Shelley.Spec.Ledger.Slot (Duration (..), EpochNo (..), SlotNo (..), epochInfoEpoch,
                      epochInfoFirst, epochInfoSize, (+*), (-*))
 import           Shelley.Spec.Ledger.Tx (Tx (..), extractGenKeyHash, extractKeyHash)
-import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix,
-                     MIRCert (..), PoolCert (..), PoolMetaData (..), PoolParams (..), Ptr (..),
+import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix, TxWitness(..),
+                     MIRCert (..), PoolCert (..), PoolMetaData (..), PoolParams (..), Ptr (..), UTxOIn(..),
                      RewardAcnt (..), TxBody (..), TxId (..), TxIn (..), TxOut (..), Url (..), UTxOOut(..),
                      Wdrl (..), getRwdCred, witKeyHash, getAddressTx, getValueTx)
--- import           Shelley.Spec.Ledger.Updates (AVUpdate (..), Mdt (..), PPUpdate (..), Update (..),
---                      UpdateState (..), apps, emptyUpdate, emptyUpdateState)
 import           Shelley.Spec.Ledger.UTxO (UTxO (..), balance, totalDeposits, txinLookup, txins,
                      txouts, txup, verifyWitVKey, mkUTxOout)
 import           Shelley.Spec.Ledger.Validation (ValidationError (..), Validity (..))

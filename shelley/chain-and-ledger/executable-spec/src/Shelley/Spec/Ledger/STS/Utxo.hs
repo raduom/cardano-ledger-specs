@@ -194,7 +194,7 @@ utxoInductive = do
   let depositChange = totalDeposits pp stakepools txCerts - (refunded + decayed)
 
   pure UTxOState
-        { _utxo      = (txins txb ⋪ utxo) ∪ txouts txb
+        { _utxo      = (txins txb ⋪ utxo) ∪ txouts slot txb
         , _deposited = deposits' + depositChange
         , _fees      = fees + (_txfee txb) + decayed
         , _ppups     = ppup'
