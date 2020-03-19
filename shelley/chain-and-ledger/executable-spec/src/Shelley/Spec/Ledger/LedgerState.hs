@@ -98,10 +98,10 @@ import           Shelley.Spec.Ledger.PParams (PParams (..), activeSlotVal, empty
 import           Shelley.Spec.Ledger.Slot (Duration (..), EpochNo (..), SlotNo (..), epochInfoEpoch,
                      epochInfoFirst, epochInfoSize, (+*), (-*))
 import           Shelley.Spec.Ledger.Tx (Tx (..), extractGenKeyHash, extractKeyHash)
-import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix,
-                     MIRCert (..), PoolCert (..), PoolMetaData (..), PoolParams (..), Ptr (..),
+import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix, TxWitness(..),
+                     MIRCert (..), PoolCert (..), PoolMetaData (..), PoolParams (..), Ptr (..), UTxOIn(..),
                      RewardAcnt (..), TxBody (..), TxId (..), TxIn (..), TxOut (..), Url (..), UTxOOut(..),
-                     Wdrl (..), getRwdCred, witKeyHash, getAddressTx, getValueTx)
+                     Wdrl (..), getRwdCred, witKeyHash, getAddress)
 
 -- .                     MIRCert (..), PoolCert (..), PoolParams (..), Ptr (..), RewardAcnt (..),
 --                      TxBody (..), UTxOIn (..), UTxOOut (..), OutND (..), TxOutP (..), UTxOOutP (..), XOutND (..),

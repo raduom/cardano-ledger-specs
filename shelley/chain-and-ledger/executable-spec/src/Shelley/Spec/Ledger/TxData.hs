@@ -49,11 +49,8 @@ import           Shelley.Spec.Ledger.Serialization (CBORGroup (..), CBORMap (..)
 
 import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Value
-<<<<<<< HEAD
-=======
 import           Shelley.Spec.Ledger.PParams
 import           Shelley.Spec.Ledger.CostModel
->>>>>>> changes from branch 2
 
 -- |The delegation of one stake key to another.
 data Delegation crypto = Delegation
@@ -168,13 +165,13 @@ newtype RdmrsHash crypto
 deriving instance Crypto crypto => ToCBOR (RdmrsHash crypto)
 deriving instance Crypto crypto => FromCBOR (RdmrsHash crypto)
 
--- | get value from Tx output
-getValueTx :: TxOut crypto -> Value crypto
-getValueTx (TxOut _ v) = v
-
--- | get address from Tx output
-getAddressTx :: TxOut crypto -> Addr crypto
-getAddressTx (TxOut a _) = a
+-- -- | get value from Tx output
+-- getValueTx :: TxOut crypto -> Value crypto
+-- getValueTx (TxOut _ v) = v
+--
+-- -- | get address from Tx output
+-- getAddressTx :: TxOut crypto -> Addr crypto
+-- getAddressTx (TxOut a _) = a
 
 -- |A unique ID of a transaction, which is computable from the transaction.
 newtype TxId crypto
@@ -246,7 +243,6 @@ data UTxOOut crypto
   = UTxOOutND (XOutND crypto) SlotNo | UTxOOutPT (UTxOOutP crypto) SlotNo
   deriving (Show, Eq, Generic, Ord)
 
-instance NoUnexpectedThunks (UTxOOut crypto)
 
 -- |The output of a Tx  without data value.
 data OutND crypto
@@ -267,12 +263,6 @@ data TxOut crypto
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (TxOut crypto)
-
-
--- |The output of a UTxO.
-data UTxOOut crypto
-  = UTxOOut (Addr crypto) (CompactValue crypto)
-  deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (UTxOOut crypto)
 
@@ -327,10 +317,7 @@ data TxBody crypto
       , _outputs  :: Seq (TxOut crypto)
       , _certs    :: Seq (DCert crypto)
       , _forge    :: Value crypto
-<<<<<<< HEAD
-=======
       , _exunits  :: ExUnits
->>>>>>> changes from branch 2
       , _wdrls    :: Wdrl crypto
       , _txfee    :: Coin
       , _fst      :: SlotNo
@@ -683,32 +670,8 @@ instance
 
 instance
   (Typeable crypto, Crypto crypto)
-  => ToCBOR (UTxOOut crypto)
- where
-  toCBOR (UTxOOut addr value) =
-    encodeListLen (listLen addr + 1)
-      <> toCBORGroup addr
-      <> toCBOR value
-
-instance (Crypto crypto) =>
-  FromCBOR (UTxOOut crypto) where
-  fromCBOR = do
-    n <- decodeListLen
-    addr <- fromCBORGroup
-    b <- fromCBOR
-    matchSize "TxOut" ((fromIntegral . toInteger . listLen) addr + 1) n
-    pure $ UTxOOut addr b
-
-instance
-  (Typeable crypto, Crypto crypto)
   => ToCBOR (TxOut crypto)
  where
-<<<<<<< HEAD
-  toCBOR (TxOut addr value) =
-    encodeListLen (listLen addr + 1)
-      <> toCBORGroup addr
-      <> toCBOR (valueToCompactValue value)
-=======
    toCBOR = \case
      TxOutND out ->
        encodeListLen 2
@@ -765,23 +728,16 @@ instance
       <> toCBORGroup addr
       <> toCBOR v
       <> toCBOR h
->>>>>>> changes from branch 2
 
 instance (Crypto crypto) =>
   FromCBOR (TxOutP crypto) where
   fromCBOR = do
     n <- decodeListLen
     addr <- fromCBORGroup
-<<<<<<< HEAD
-    b <- fromCBOR
-    matchSize "TxOut" ((fromIntegral . toInteger . listLen) addr + 1) n
-    pure $ TxOut addr (compactValueToValue b)
-=======
     v <- fromCBOR
     h <- fromCBOR
     matchSize "TxOutP" ((fromIntegral . toInteger . listLen) addr + 1) n
     pure $ TxOutP addr v h
->>>>>>> changes from branch 2
 
 instance
   Crypto crypto
@@ -876,14 +832,6 @@ instance
           [ encodeMapElement 0 $ _inputs txbody
           , encodeMapElement 1 $ CborSeq $ _outputs txbody
           , encodeMapElement 2 $ _txfee txbody
-<<<<<<< HEAD
-          , encodeMapElement 3 $ _ttl txbody
-          , encodeMapElementUnless null 4 $ CborSeq $ _certs txbody
-          , encodeMapElementUnless (null . val) 5 $ _forge txbody
-          , encodeMapElementUnless (null . unWdrl) 6 $ _wdrls txbody
-          , encodeMapElementUnless (updateNull) 7 $ _txUpdate txbody
-          , encodeMapElement 8 =<< _mdHash txbody
-=======
           , encodeMapElement 3 $ _fst txbody
           , encodeMapElement 4 $ _ttl txbody
           , encodeMapElementUnless null 5 $ CborSeq $ _certs txbody
@@ -894,7 +842,6 @@ instance
           , encodeMapElement 10 =<< _ppHash txbody
           , encodeMapElement 11 =<< _rdmrsHash txbody
           , encodeMapElement 12 =<< _mdHash txbody
->>>>>>> changes from branch 2
           ]
         n = fromIntegral $ length l
     in encodeMapLen n <> fold l
@@ -912,17 +859,6 @@ instance
    fromCBOR = do
      mapParts <- decodeMapContents $
        decodeWord >>= \case
-<<<<<<< HEAD
-         0 -> fromCBOR                     >>= \x -> pure (0, \t -> t { _inputs   = x })
-         1 -> (unwrapCborSeq <$> fromCBOR) >>= \x -> pure (1, \t -> t { _outputs  = x })
-         2 -> fromCBOR                     >>= \x -> pure (2, \t -> t { _txfee    = x })
-         3 -> fromCBOR                     >>= \x -> pure (3, \t -> t { _ttl      = x })
-         4 -> (unwrapCborSeq <$> fromCBOR) >>= \x -> pure (4, \t -> t { _certs    = x })
-         5 -> fromCBOR                      >>= \x -> pure (3, \t -> t { _forge    = x })
-         6 -> fromCBOR                     >>= \x -> pure (5, \t -> t { _wdrls    = x })
-         7 -> fromCBOR                     >>= \x -> pure (6, \t -> t { _txUpdate = x })
-         8 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _mdHash   = Just x })
-=======
          0 -> fromCBOR                      >>= \x -> pure (0, \t -> t { _inputs   = x })
          1 -> (unwrapCborSeq <$> fromCBOR)  >>= \x -> pure (1, \t -> t { _outputs  = x })
          2 -> fromCBOR                      >>= \x -> pure (2, \t -> t { _txfee    = x })
@@ -936,7 +872,6 @@ instance
          10 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _ppHash   = Just x })
          11 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _rdmrsHash= Just x })
          12 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _mdHash   = Just x })
->>>>>>> changes from branch 2
          k -> invalidKey k
      let requiredFields :: Map Int String
          requiredFields = Map.fromList $
@@ -958,12 +893,8 @@ instance
           , _fst      = SlotNo 0
           , _ttl      = SlotNo 0
           , _certs    = Seq.empty
-<<<<<<< HEAD
-          , _forge    = Value Map.empty
-=======
           , _forge    = zeroV
           , _exunits  = defaultUnits
->>>>>>> changes from branch 2
           , _wdrls    = Wdrl Map.empty
           , _txUpdate = emptyUpdate
           , _ppHash   = Nothing
