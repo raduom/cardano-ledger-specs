@@ -78,7 +78,7 @@ except for the following changes and additions:
   the name of privacy concerns (if a user so chooses).
 
   \item $\HasDV$: This is a tag used to indicate whether the transaction carrying
-  the output the tag is attached to also contains the full datavalue corresponding
+  the output the tag is attached to also contains the full datum object corresponding
   to the data hash in the output (this tag only applies to Plutus script outputs)
 
   \item $\UTxOIn$ is the type of the keys in the UTxO finite map. In Goguen, it is
@@ -91,11 +91,11 @@ except for the following changes and additions:
   be used to pay script execution fees. Only VK-spending inputs can be used to
   pay fees.
 
-  \item $\TxOutND$: A transaction output with no datavalue hash
+  \item $\TxOutND$: A transaction output with no datum hash
   (this type is for VK and multisig scripts outputs).
 
   \item $\TxOutP$: A transaction output type for Plutus
-  script outputs (which include datavalue hash).
+  script outputs (which include datum hash).
 
   \item $\UTxOOut$ is the type of UTxO entry that gets created when a transaction
   output is processed. Note that like in the case of the type of transaction inputs,
@@ -175,7 +175,7 @@ except for the following changes and additions:
       \var{hdv}
       & \HasDV
       & \Yes \uniondistinct \Nope
-%      & \text {tag for outputs that come with data values}
+%      & \text {tag for outputs that come with datums}
       \\
       \var{uin}
       & \UTxOIn
@@ -253,12 +253,12 @@ in a transaction that is needed for witnessing (script and VK), including
   \item VK signatures, as before
   \item a set of scripts (this includes scripts of all languages, and for all
   purposes - forgin, outputs, certificates, and withdrawals)
-  \item a set of terms of type data, which contains all required datavalues
-  \item an indexed structure containing $\Data$ terms, which includes all
+  \item a set of terms of type data, which contains all required datum objects
+  \item an structure indexed by $\RdmrPtr$, with $\Data$ values, which includes all
   required redeemers
 \end{itemize}
 
-There is a difference between the way scripts and datavalues are included in
+There is a difference between the way scripts and datum objects are included in
 a transaction (as a set) versus how redeemers are
 (as an indexed structure). The reason for this difference is a matter of matching
 the pieces of witnessing info to the thing it is required for witnessing. There
@@ -273,9 +273,9 @@ are two possibilities here:
 
   To find the script, we can to look through
   the set of scripts for the one with the matching hash value.
-  This is also the case with hashes of datavalues. A Plutus-script locked
-  UTxO entry it contains the hash of the datavalue, and we can look for
-  the datavalue with this hash in the set.
+  This is also the case with hashes of datum objects. A Plutus-script locked
+  UTxO entry it contains the hash of the datum, and we can look for
+  the datum with this hash in the set.
 
   \item[(2)] The item being validated has no explicit link to, hash of, or
   reference to the piece needed for witnessing. In this case, we must create
@@ -329,9 +329,9 @@ on-chain transfer of value resulting from this transaction being processed
 In the classic UTxO case, this means that, for example,
 every input being spent and every output being created are in the body.
 
-There is no need to ever sign anything related to validator scripts of datavalues,
+There is no need to ever sign anything related to validator scripts or datum objects,
 because a hash of every validator script that will be run during the validation
-of the transaction is always part of the body, and the hash of every datavalue
+of the transaction is always part of the body, and the hash of every datum
 is recorded in the UTxO.
 
 In the EUTxO case, this means additionaly including everything in the body that can change
@@ -401,7 +401,7 @@ the rest of a Shelley transction in the Goguen format when we discuss witnessing
       \var{wits} ~\in~ \TxWitness ~=~
        & (\VKey \mapsto \Sig) & \fun{txwitsVKey} & \text{VK signatures}\\
        & \times ~\powerset{\Script}  & \fun{txscripts} & \text{all scripts}\\
-       & \times~ \powerset{\Data} & \fun{txdats} & \text{all datavalues}\\
+       & \times~ \powerset{\Data} & \fun{txdats} & \text{all datum objects}\\
        & \times ~(\RdmrPtr \mapsto \Data)& \fun{txrdmrs}& \text{indexed redeemers}\\
     \end{array}
   \end{equation*}
@@ -482,7 +482,7 @@ In the future, additional functionality may be supported by the ledger that
 allows a sequence of transactions built over a period of time to be put on-chain
 as a single transaction. Over this period of time, the parameters or ledger
 data that must be passed as an argument to script interpreters could have changed.
-As a result, this pending transaction (that contains the whole sequence of
+As a result, this transaction (that contains the whole sequence of
 transactions) is still obligated to include the hash of the current parameters
 and any additional script processing fees.
 
@@ -507,35 +507,78 @@ for script interpreter versions of the scripts inside the transaction.
 
 \textbf{Coin and Multicurrency Tokens}
 In the Goguen era, multicurrency is intorduced, but Ada is still expected to be
-the most common type of token on the ledger. More improtantly, it is the only
-type of token relevant to all non-UTxO ledger accounting, including deposits,
+the most common type of token on the ledger.
+The $\Coin$ type is used to represent an amount of Ada.
+It is the only
+type of token which can be used for all non-UTxO ledger accounting, including deposits,
 fees, rewards, treasury, and the proof of stake protocol. Under no circumstances
 are these administrative fields and calculations ever expected to operate on
 any types of tokens besides Ada. These fiels will continue to have the type $\Coin$.
 
-The representation of Ada in the UTxO and inside transactions (as a term of the
-$\Value$ type) is an implementation detail,
-outside the scope of this specification. We make the following assumptions
-about this representation:
+The exact representation of tokens in the UTxO and inside transactions
+is an implementation detail, which we omit here.
+Note that it necessarily is equivalent to $\Value$, optimized
+for Ada-only cases, has a unique representation for Ada token,
+and does not allow Ada to have tokens denoted by anything other than $\mathsf{adaToken}$.
+In Figure \ref{fig:defs:functions-helper} are the following helper functions,
 
 \begin{itemize}
-  \item the representation of Ada is unique
-  \item the conversion of the $\Coin$ type to $\Value$ - it is implicit that
-  the $\Value$ representation of Ada includes the special case for $\Coin$, and
-  terms of these two types can be added or subtracted as terms of type $\Value$
-  \item all Ada tokens are fungible with other Ada tokens (recall that this is
-  not the case of all tokens a currency that is not Ada)
-  \item there is no way to forge Ada tokens, as it it has a special representation
-  with no corresponding forging script
+  \item $\mathsf{adaID}$ is a random script hash value with no known associated
+  script. It is the currency ID of Ada. While extremely unlikely, guessing a
+  script that hashes to this value
+  and validates will allow a user to forge unlimited amounts of Ada
+  \item $\mathsf{adaToken}$ is a byte string representation of the word "Ada".
+  The ledger should never allow the use of any other token name associated
+  with Ada's currency ID
+  \item $\fun{qu}$ and $\fun{co}$ are type conversions from quantity to
+  coin. Both of these types are synonyms for $\Z$, so they are
+  type re-naming conversions that are mutual inverses, with
+
+  $\fun{qu} ~(\fun{co} ~q )~= ~q$, and
+
+  $\fun{co}~ (\fun{qu}~ c) ~=~ c$, for $c \in \Coin,~q \in \Quantity$.
+
+  \item $\fun{coinToValue}$ takes a coin value and generates a $\Value$ type representation
+  of it
 \end{itemize}
+
+An amount of Ada can also be represented as a multicurrency value
+using the notation in Figure \ref{fig:defs:functions-helper}, as
+$\fun{coinToValue}~c$ where $c \in \Coin$. We must use this representation
+when adding or subtracting Ada and other tokens as $\Value$, e.g. in the
+preservation of value calculations.
+
+\begin{figure*}[htb]
+  \emph{Abstract Functions and Values}
+  %
+  \begin{align*}
+    \mathsf{adaID} \in& ~\ScriptHash
+    & \text{Ada currency ID} \\
+    \mathsf{adaToken} \in& ~\Token
+    & \text{Ada Token} \\
+    \mathsf{co} \in& ~\Quantity \to \Coin
+    & \text{type conversion} \\
+    \mathsf{qu} \in& ~\Coin \to \Quantity
+    & \text{type conversion} \\
+  \end{align*}
+  \emph{Helper Functions}
+  %
+  \begin{align*}
+    \fun{coinToValue} \in & ~\Coin\to \Value \\
+    \fun{coinToValue}~ c = & \{\mathsf{adaID} \mapsto \{\mathsf{adaToken} \mapsto \fun{qu}~c\}\} \\
+    &\text{convert a Coin amount to a Value} \\
+  \end{align*}
+  \caption{Multicurrency}
+  \label{fig:defs:functions-helper}
+\end{figure*}
 
 \textbf{Plutus Script Validation}
 In Figure \ref{fig:defs:functions-valid}, abstract functions for script validation
 are presented.
 
 \begin{itemize}
-  \item $\fun{validationData}$ constructs the PendingTx value passed
-  to the script interpreter
+  \item $\fun{valContext}$ constructs the validation context value passed
+  to the script interpreter (all the necessary transaction and chain state data)
   \item $\fun{hashScript},~ \fun{hashData}$ are abstract hashing functions.
   \item $\fun{runMSigScript}$ (replacing $\fun{evaluateScript}$ in Shelley the ledger spec) performs
   validation for multi-sig scripts.
@@ -548,8 +591,8 @@ are presented.
   correct conversion of the quantity of resource primitives the script validation
   computation used into $\ExUnits$. T
   \item
-  a list of (at most three) terms of type $\Data$ (the data-value, redeemer,
-  and the PendingTx).
+  a list of (at most three) terms of type $\Data$ (the datum, redeemer,
+  and the validation context).
   \item the execution units budget (the maximum $\var{exunits}$
   the validation is allowed to use)
   \end{itemize}
@@ -562,12 +605,11 @@ are presented.
 \begin{note}
   \textbf{Know your contract arguments}
 A Plutus validator script may receive either a list of three terms of type $\Data$,
-such as for output locking scripts, or two terms (redeemer and PendingTx, with
-no datavalue), such as in the rest of the Plutus scripts. If redeemers
-are optional, sometimes only the PendingTx will be passed to the validator.
+such as for output locking scripts, or two terms (redeemer and context, with
+no datum), such as in the rest of the Plutus scripts use cases.
 Contract authors must keep this in mind when writing contracts, as there is
 only one function (per Plutus version) to interface with the Plutus interpreter,
-that runs every kind of Plutus script - with no knowledge of what $\Data$ arguments 
+that runs every kind of Plutus script - with no knowledge of what $\Data$ arguments
 are passed to it via this list.
 \end{note}
 
@@ -579,7 +621,7 @@ are passed to it via this list.
      &\text{compute script hash} \\~\\
      &\fun{hashData} \in  ~\Data \to \DataHash \\
      &\text{compute hash of data} \\~\\
-     &\fun{validationData} \in  \UTxO \to \GoguenTx \to \CurItem \to \Data \\
+     &\fun{valContext} \in  \UTxO \to \GoguenTx \to \CurItem \to \Data \\
      &\text{build Validation Data} \\~\\
      &\fun{runMSigScript} \in\ScriptMSig\to \GoguenTx \to \IsValidating  \\
      &\text{validation of a multi-sig script} \\~\\

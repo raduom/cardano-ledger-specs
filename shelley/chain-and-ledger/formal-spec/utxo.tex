@@ -90,8 +90,12 @@ The changes due to Plutus integration are as follows:
 
 \begin{itemize}
 
-  \item $\fun{adaAll}$ adds up all the Ada in a UTxO and returns it as a
+  \item $\fun{getCoin}$ adds up all the Ada in a given output and returns it as a
   $\Coin$ value
+
+  \item $\fun{utxoAda}$ returns the set of all the outputs in a UTxO with only Ada
+  tokens (the other tokens are discarded). This is used in the stake distribution
+  calculation at the epoch boundary
 
   \item $\fun{txscrfee}$ calculates the fee a transaction must pay for script
   execution based on current resource use pricing. Note that this value,
@@ -149,9 +153,15 @@ not present in on of the values),
 \begin{figure}[htb]
   \emph{Helper Functions}
   \begin{align*}
-    & \fun{adaAll} \in \UTxO \to \Coin \\
-    & \fun{adaAll}~{\var{utxo}} ~=~\sum_{v \in \fun{ubalance}~\var{utxo} \cap \Coin} v \\
-    & \text{sum total of the amount of Ada in all outputs} \\
+    & \fun{getCoin} \in \UTxOOut \to \Coin \\
+    & \fun{getCoin}~{\var{out}} ~=~\sum_{\mathsf{adaID} \mapsto tkns \in \fun{getValue}~out}
+       (\sum_{q \in \range~{tkns}} \fun{co}~q) \\
+    & \text{sum total of amount of Ada in an output}
+    \nextdef
+    & \fun{utxoAda} \in \UTxO \to \powerset{(\Addr \times \Coin)} \\
+    & \fun{utxoAda}~{\var{utxo}} ~=~\{~(\fun{getAddr}~\var{out},~\fun{getCoin}~{out})
+    ~\vert~ \var{out} \in \range~\var{utxo} ~\} \\
+    & \text{returns the outputs in the UTxO with only the Ada coins} \\
   \end{align*}
   %
   \emph{Main Calculations}
@@ -174,16 +184,16 @@ not present in on of the values),
     \nextdef
     & \fun{consumed} \in \PParams \to \UTxO \to \StakeCreds \to \Wdrl \to \TxBody \to \Value \\
     & \consumed{pp}{utxo}{stkCreds}{rewards}~{txb} = \\
-    & ~~\ubalance{(\txins{txb} \restrictdom \var{utxo})} +
-        \fun{wbalance}~(\fun{txwdrls}~{txb})~\\
-        &~~+~ \keyRefunds{pp}{stkCreds}{txb} +
+    & ~~\ubalance{(\txins{txb} \restrictdom \var{utxo})} + \\
+    &~~  \fun{coinToValue}(\fun{wbalance}~(\fun{txwdrls}~{txb})~\\
+        &~~+~ \keyRefunds{pp}{stkCreds}{txb}) +
         ~\fun{forge}~\var{txb} \\
     & \text{value consumed} \\
     \nextdef
     & \fun{produced} \in \Slot \to \PParams \to \StakePools \to \TxBody \to \Value \\
     & \fun{produced}~\var{slot}~\var{pp}~\var{stpools}~\var{txb} = \\
-    &~~\ubalance{(\outs{slot}~{txb})}  + \txfee{txb}
-    + \deposits{pp}{stpools}~{(\txcerts{txb})}\\
+    &~~\ubalance{(\outs{slot}~{txb})}  + \fun{coinToValue}(\txfee{txb} \\
+    &~~+ \deposits{pp}{stpools}~{(\txcerts{txb})})\\
     & \text{value produced} \\
   \end{align*}
   \caption{Functions used in UTxO rules}
@@ -207,7 +217,7 @@ This includes,
   \item $\fun{indexedScripts}$ creates a finite map wherein all the scripts
   of a transaction (that it carries as a set) are indexed by their hashes,
   calculated by this function
-  \item $\fun{indexedDats}$ is a similar function that indexes all the data values
+  \item $\fun{indexedDats}$ is a similar function that indexes all the datum objects
   carried by the transaction with their hashes
   \item $\fun{getmdl}$ selects, given a script and protocol parameters,
   the cost model that is associated with the language of that
@@ -243,7 +253,7 @@ This includes,
      s\in~\fun{txscripts}~(\fun{txwits}~{tx})\}
     \nextdef
     &\fun{indexedDats} \in \GoguenTx \to (\DataHash \mapsto \Data)\\
-    & \text{make a finite map of hash-indexed data values} \\
+    & \text{make a finite map of hash-indexed datum objects} \\
     &\fun{indexedDats}~{tx} ~=~ \{ h \mapsto d ~\vert~ \fun{hashData}~{d}~=~h,
      d\in~\fun{txdats}~(\fun{txwits}~{tx})\}
     \nextdef
@@ -294,7 +304,10 @@ with the data needed for validation
 \textbf{What scripts get redeemers?}
 Here we assume it is ok for every kind of Plutus script to
 have a redeemer. In fact, the transaction is obligated to provide a redeemer for
-every Plutus script.
+every Plutus script. There is the possibility, in the future, to optimize supplying redeemers
+by allowing transactions to omit unit-value redeemers, filling the $\Data$-type
+unit in by default. Whether this will be done is contingent on real-world
+observations of the use of redeemers.
 \end{note}
 
 Note that there are no "checks" done inside these functions. If there are
@@ -313,9 +326,9 @@ the certificate credential, or the currency ID of forged tokens
 full validator, which is looked up (by hash value) in the finite map
 constructed by $\fun{indexedScripts}$
 
-\item the data values, which are also looked up by hash in the map
+\item the datum objects, which are also looked up by hash in the map
 constructed by $\fun{indexedDats}$.
-The hashes used to look up the data-values are found in the outputs of the UTxO,
+The hashes used to look up the datum objects are found in the outputs of the UTxO,
 indexed by the $(txid,ix)$ in the transaction output spending the UTxO entry
 
 \item the redeemers, which are in the indexed redeemer structure carried by the transaction.
@@ -325,13 +338,13 @@ These are looked up by current item using the $\fun{findRdmr}$ function.
 and the current item being validated
 \end{itemize}
 
-Recall that $\fun{validationData}$ constructs the PendingTx (kept abstract
+Recall that $\fun{valContext}$ constructs the validation context (kept abstract
 in this spec).
 
 The function $\fun{mkPLCLst}$ returns a list made of the union of the sets of
 pairs (of a script and the input list) which were constructed by the
-functions specific to the script uses ($\fun{allCertScrts},~\fun{allWDRLSScrts},~
-\fun{forgedScrts},~\fun{allInsScrts}$). Note that like the functions building
+functions specific to the script uses ($\fun{allCertScrts}$, $\fun{allWDRLSScrts}$,
+$\fun{forgedScrts}$, $\fun{allInsScrts}$). Note that like the functions building
 the script-inputs sets, $\fun{mkPLCLst}$ does not include the execution units or cost model
  parameters in its return type. This data is supplied to the Plutus interpreter
  directly during the application of the validation rule SVAL.
@@ -342,7 +355,7 @@ the script-inputs sets, $\fun{mkPLCLst}$ does not include the execution units or
     & \text{check that all certificate witnessing scripts in a tx validate} \\
     & \fun{allCertScrts}~{utxo}~{tx}~=~ \\
     & ~~\{ (\var{script_v}, r;
-    \fun{validationData}~\var{utxo}~\var{tx}~\var{cert}; \epsilon) ~\vert \\
+    \fun{valContext}~\var{utxo}~\var{tx}~\var{cert}; \epsilon) ~\vert \\
     & ~~r \in \fun{findRdmr}~{tx}~\var{cert}, \\
     & ~~\var{cert} \in (\DCertDeRegKey\cap\fun{txcerts}~\txbody{tx}), \\
     &~~\fun{regCred}~\var{cert}\mapsto \var{script_v}\in \fun{indexedScripts}~{tx}, \\
@@ -353,7 +366,7 @@ the script-inputs sets, $\fun{mkPLCLst}$ does not include the execution units or
     & \fun{allWDRLSScrts} \in \UTxO \to \GoguenTx \to \powerset{(\ScriptPlutus\times\seqof{\Data})} \\
     & \text{check that all reward withdrawal locking scripts in a tx validate} \\
     & \fun{allWDRLSScrts}~{utxo}~{tx}~=~ \\
-    & ~~\{ (\var{script_v}, r; \fun{validationData}~\var{utxo}~\var{tx}~
+    & ~~\{ (\var{script_v}, r; \fun{valContext}~\var{utxo}~\var{tx}~
       (a\mapsto c); \epsilon) ~\vert \\
     &~~ r\in \fun{findRdmr}~{tx}~\var{(a\mapsto c)}, \\
     & ~~a \mapsto c \in\fun{txwdrls}~(\txbody{tx}), \\
@@ -365,7 +378,7 @@ the script-inputs sets, $\fun{mkPLCLst}$ does not include the execution units or
     & \text{check that all forging scripts in a tx validate} \\
     & \fun{forgedScrts}~{utxo}~{tx}~=~\\
     & ~~\{ (\var{script_v}, r;
-    \fun{validationData}~\var{utxo}~\var{tx}~\var{cid}; \epsilon) ~\vert \\
+    \fun{valContext}~\var{utxo}~\var{tx}~\var{cid}; \epsilon) ~\vert \\
     & ~~r \in \fun{findRdmr}~{tx}~(\var{cid}\mapsto ~ \var{tkns}), \\
     & ~~\var{cid}\mapsto ~ \var{tkns} \in \fun{forge}~(\txbody{tx}), \\
     &~~\var{cid}\mapsto \var{script_v}\in \fun{indexedScripts}~{tx}
@@ -381,7 +394,7 @@ the script-inputs sets, $\fun{mkPLCLst}$ does not include the execution units or
     & \fun{allInsScrts} \in \UTxO \to \GoguenTx \to \powerset{(\ScriptPlutus\times\seqof{\Data})} \\
     & \text{check that all UTxO entry locking scripts in a tx validate} \\
     & \fun{allInsScrts}~{utxo}~{tx}~=~ \{ (\var{script_v}; (\var{d};\var{r}; \\
-    & ~~ \fun{validationData}~\var{utxo}~\var{tx}~
+    & ~~ \fun{valContext}~\var{utxo}~\var{tx}~
       (txid,ix,\var{hash_r}))) ~\vert \\
     & ~~(txid,ix) \in \fun{txinputs}~(\txbody{tx}), \\
     & ~~\var{r} \in \fun{findRdmr}~{tx}~\var{(txid,ix)}, \\
@@ -498,7 +511,19 @@ The rules for the second-phase script validation SVAL are given in
 Figure~\ref{fig:rules:utxo-scrval}. Again, there is no UTxO state update
 done in this rule. Its function is essentially verifying that the
 validation tag ($\fun{txvaltag}$) is applied correctly by the creater of
-the block by running all the scripts. There are three transition rules.
+the block by running all the scripts.
+
+Note that following the Shelley ledger spec approach, every function
+we define and use in the preconditions or calculations in the rules is
+necessarily total.
+This way, all errors (validation failures) we encounter always come from
+rule applications, i.e. a precondition of a rule is not met.
+We mention this here because the SVAL rule looks as if it could be
+simply a function. However, we want the incorrect application of the
+validation tag to be an error, so it must be an error that comes form
+an unmet precondition of a rule.
+
+There are three transition rules.
 The first rule, $\mathsf{Scripts\mbox{-}Val}$, applies when
 
 \begin{itemize}
@@ -556,7 +581,9 @@ We also rely on correct use of tags in other rules (at this time, only in
 the rules in Figure \ref{fig:rules:ledger}).
 
 \begin{note}
-\textbf{Non-integral calculations inside the Plutus interpreter:} if there are any, they should
+\textbf{Non-integral calculations inside the Plutus interpreter:} if there
+will be some in the future (from the Actus contracts implemented using
+the Marlowe interpreter, for e.g.) they should
 be done the same way they are done in the Shelley ledger. This is a matter of
 deterministic script validation outcomes. Inconsistent rounding could
 result in different validation outcomes running the same script on the same
@@ -869,6 +896,8 @@ from the original Shelley spec):
 
   \item The transaction is paying fees correctly
 
+  \item The transaction is not forging any Ada
+
   \item All outputs of the transaction contain only non-negative quantities
 
   \item The transaction size does not exceed maximum
@@ -900,6 +929,7 @@ UTXOS rule.
       \\
       ~
       \\
+      \mathsf{adaID}~\notin \dom~{\fun{forge}~tx} \\
       \forall txout \in \txouts{txb}, ~ \fun{getValue}~txout\}  ~\geq ~ \epsilon \\~
       \\
       \fun{txsize}~{tx}\leq\fun{maxTxSize}~\var{pp} \\
@@ -1030,9 +1060,9 @@ preconditions:
     \item The only certificates that are allowed to have scripts as witnesses
     are delegation deregistration certificates
 
-    \item The transaction has a datavalue for every Plutus script output it is spending
+    \item The transaction has a datum for every Plutus script output it is spending
 
-    \item The transaction has a datavalue for every Plutus script output that is
+    \item The transaction has a datum for every Plutus script output that is
     marked with the $\Yes$ tag for $\HasDV$
 
     \item
@@ -1078,8 +1108,7 @@ by the UTXO transition (the application of which is also part of the conditions)
       \\
       ~
       \\
-      \fun{cmlangs}~(\fun{txscripts}~\var{txw}) ~=~ \emptyset \Leftrightarrow \fun{ppHash}~{txb}~=~\Nothing \\ \fun{cmlangs}~(\fun{txscripts}~\var{txw}) \neq \emptyset \Leftrightarrow \\
-      \fun{hashLanguagePP}~\var{pp}~(\fun{cmlangs}~(\fun{txscripts}~\var{txw})) =  \fun{ppHash}~{txb} \\~\\
+      \fun{ppHash}~{txb}~=~\fun{hashLanguagePP}~\var{pp}~(\fun{cmlangs}~(\fun{txscripts}~\var{txw})) \\~\\
       \fun{txrdmrs}~\var{txw} ~=~ \emptyset \Leftrightarrow \fun{rdmrsHash}~{txb}~=~\Nothing \\
       \fun{txrdmrs}~\var{txw} ~\neq~ \emptyset \Leftrightarrow
       \fun{hash}~(\fun{txrdmrs}~\var{txw})~ =~  \fun{rdmrsHash}~{txb} \\
