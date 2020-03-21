@@ -163,13 +163,13 @@ utxoInductive = do
   txins txb ⊆ dom utxo ?! BadInputsUTxO
 
   let consumed_ = consumed pp utxo stakeCreds txb
-      produced_ = produced pp stakepools txb
+      produced_ = produced slot pp stakepools txb
   consumed_ == produced_ ?! ValueNotConservedUTxO (toValBST consumed_) (toValBST produced_)
 
   -- process Update Proposals
   ups' <- trans @(UP crypto) $ TRC (UpdateEnv slot pp genDelegs, ups, txup tx)
 
-  let outputValues = [getValue utxoout | utxoout <- Set.toList (range (txouts txb))]
+  let outputValues = [getValue utxoout | utxoout <- Set.toList (range (txouts slot txb))]
   all (zeroV <=) outputValues ?! NegativeOutputsUTxO
 
   let (Value vls) = _forge txb
