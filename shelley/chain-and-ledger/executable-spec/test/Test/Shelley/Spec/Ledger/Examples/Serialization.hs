@@ -63,6 +63,7 @@ import           Shelley.Spec.Ledger.TxData (pattern AddrBase, pattern AddrEnter
 import           Shelley.Spec.Ledger.OCert (KESPeriod (..), pattern OCert)
 import           Shelley.Spec.Ledger.Scripts (pattern RequireSignature, pattern ScriptHash)
 import           Shelley.Spec.Ledger.UTxO (makeWitnessVKey)
+import           Shelley.Spec.Ledger.Value
 
 import           Test.Cardano.Crypto.VRF.Fake (WithResult (..))
 import           Test.Shelley.Spec.Ledger.ConcreteCryptoTypes (Addr, BHBody, CoreKeyPair,
@@ -152,7 +153,7 @@ testVRFKH :: VRFKeyHash
 testVRFKH = hashKeyVRF $ snd testVRF
 
 testTxb :: TxBody
-testTxb = TxBody Set.empty Seq.empty Seq.empty (Wdrl Map.empty) (Coin 0) (SlotNo 0) Nothing Nothing
+testTxb = TxBody Set.empty Seq.empty Seq.empty zeroV (Wdrl Map.empty) (Coin 0) (SlotNo 0) Nothing Nothing
 
 testKey1 :: KeyPair
 testKey1 = KeyPair vk sk
@@ -336,13 +337,13 @@ serializationTests = testGroup "Serialization Tests"
   , checkEncodingCBOR "txin"
     (TxIn genesisId 0 :: TxIn)
     (T (TkListLen 2) <> S (genesisId :: TxId) <> T (TkWord64 0))
-  , let a = AddrEnterprise (KeyHashObj testKeyHash1) in
-    checkEncodingCBOR "txout"
-    (TxOut a (Coin 2))
-    (T (TkListLen 3)
-      <> G a
-      <> S (Coin 2)
-    )
+  -- , let a = AddrEnterprise (KeyHashObj testKeyHash1) in
+  --   checkEncodingCBOR "txout"
+  --   (TxOut a zeroV) -- TODO something else with value
+  --   (T (TkListLen 3)
+  --     <> G a
+  --     <> S zeroV -- TODO something else wiht value
+  --   )
   , case makeWitnessVKey testTxb testKey1 of
     w@(WitVKey vk sig) ->
       checkEncodingCBOR "vkey_witnesses"
@@ -620,12 +621,13 @@ serializationTests = testGroup "Serialization Tests"
   -- checkEncodingCBOR "minimal_txn_body"
   , let
       tin = Set.fromList [TxIn genesisId 1]
-      tout = TxOut testAddrE (Coin 2)
+      tout = TxOut testAddrE zeroV -- TODO value
     in checkEncodingCBOR "txbody"
     ( TxBody -- minimal transaction body
       tin
       (Seq.singleton tout)
       Seq.empty
+      zeroV -- TODO something else with value
       (Wdrl Map.empty)
       (Coin 9)
       (SlotNo 500)
@@ -647,7 +649,7 @@ serializationTests = testGroup "Serialization Tests"
   -- checkEncodingCBOR "transaction_mixed"
   , let
       tin = Set.fromList [TxIn genesisId 1]
-      tout = TxOut testAddrE (Coin 2)
+      tout = TxOut testAddrE zeroV -- TODO value
       ra = RewardAcnt (KeyHashObj testKeyHash2)
       ras = Map.singleton ra (Coin 123)
       up = Update (ProposedPPUpdates (Map.singleton
@@ -680,6 +682,7 @@ serializationTests = testGroup "Serialization Tests"
         tin
         (Seq.singleton tout)
         mempty
+        zeroV --TODO forge
         (Wdrl ras)
         (Coin 9)
         (SlotNo 500)
@@ -705,7 +708,7 @@ serializationTests = testGroup "Serialization Tests"
   -- checkEncodingCBOR "full_txn_body"
   , let
       tin = Set.fromList [TxIn genesisId 1]
-      tout = TxOut testAddrE (Coin 2)
+      tout = TxOut testAddrE zeroV -- TODO value
       reg = DCertDeleg (RegKey (KeyHashObj testKeyHash1))
       ra = RewardAcnt (KeyHashObj testKeyHash2)
       ras = Map.singleton ra (Coin 123)
@@ -741,6 +744,7 @@ serializationTests = testGroup "Serialization Tests"
         tin
         (Seq.singleton tout)
         (Seq.fromList [ reg ])
+        zeroV -- TODO forge
         (Wdrl ras)
         (Coin 9)
         (SlotNo 500)
@@ -771,8 +775,9 @@ serializationTests = testGroup "Serialization Tests"
   -- checkEncodingCBOR "minimal_txn"
   , let txb = TxBody
                 (Set.fromList [TxIn genesisId 1])
-                (Seq.singleton $ TxOut testAddrE (Coin 2))
+                (Seq.singleton $ TxOut testAddrE zeroV) -- TODO value
                 Seq.empty
+                zeroV --TODO forge
                 (Wdrl Map.empty)
                 (Coin 9)
                 (SlotNo 500)
@@ -795,8 +800,9 @@ serializationTests = testGroup "Serialization Tests"
   -- checkEncodingCBOR "full_txn"
   , let txb = TxBody
                 (Set.fromList [TxIn genesisId 1])
-                (Seq.singleton $ TxOut testAddrE (Coin 2))
+                (Seq.singleton $ TxOut testAddrE zeroV) --TODO value
                 Seq.empty
+                zeroV --TODO forge
                 (Wdrl Map.empty)
                 (Coin 9)
                 (SlotNo 500)
@@ -910,8 +916,8 @@ serializationTests = testGroup "Serialization Tests"
   , let sig = Maybe.fromJust $ signKES (fst testKESKeys) testBHB 0
         bh = BHeader testBHB sig
         tin = Set.fromList [TxIn genesisId 1]
-        tout = Seq.singleton $ TxOut testAddrE (Coin 2)
-        txb s = TxBody tin tout Seq.empty (Wdrl Map.empty) (Coin 9) (SlotNo s) Nothing Nothing
+        tout = Seq.singleton $ TxOut testAddrE zeroV -- TODO value
+        txb s = TxBody tin tout Seq.empty zeroV (Wdrl Map.empty) (Coin 9) (SlotNo s) Nothing Nothing -- TODO forge
         txb1 = txb 500
         txb2 = txb 501
         txb3 = txb 502
