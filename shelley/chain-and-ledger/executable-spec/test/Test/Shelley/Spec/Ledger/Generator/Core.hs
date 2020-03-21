@@ -79,6 +79,7 @@ import           Shelley.Spec.Ledger.Slot (BlockNo (..), Duration (..), SlotNo (
 import           Shelley.Spec.Ledger.Tx (pattern TxOut, hashScript)
 import           Shelley.Spec.Ledger.TxData (pattern Addr, pattern KeyHashObj,
                      pattern ScriptHashObj, pattern StakeRefBase, pattern StakeRefPtr)
+import           Shelley.Spec.Ledger.Value
 
 import           Test.Shelley.Spec.Ledger.ConcreteCryptoTypes (Addr, AnyKeyHash, Block, CoreKeyPair,
                      Credential, HashHeader, KeyHash, KeyPair, KeyPairs, MultiSig, MultiSigPairs,
@@ -291,7 +292,7 @@ pickStakeKey keys = vKey . snd <$> QC.elements keys
 genTxOut :: HasCallStack => Constants -> [Addr] -> Gen [TxOut]
 genTxOut Constants {maxGenesisOutputVal, minGenesisOutputVal} addrs = do
   ys <- genCoinList minGenesisOutputVal maxGenesisOutputVal (length addrs) (length addrs)
-  return (uncurry TxOut <$> zip addrs ys)
+  return (uncurry TxOut <$> zip addrs (fmap coinToValue ys))
 
 -- | Generates a list of 'Coin' values of length between 'lower' and 'upper'
 -- and with values between 'minCoin' and 'maxCoin'.
