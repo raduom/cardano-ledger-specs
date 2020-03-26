@@ -29,9 +29,10 @@
 \newcommand{\poolReward}[5]{\fun{poolReward}~\var{#1}~{#2}~\var{#3}~\var{#4}~\var{#5}}
 \newcommand{\createRUpd}[2]{\fun{createRUpd}~\var{#1}~\var{#2}}
 
-In order to handle rewards and staking, we must change filter the UTxO
-for Ada-only values before performing any calculations. We also use the
-overloaded $\sum$ symbol for monoid addition here.
+In order to handle rewards and staking, we must change the stake distribution
+calculation function to add up only the Ada in the UTxO
+ before performing any calculations. In Figure~\ref{fig:functions:stake-distribution}
+ below, we do so using the $\fun{utxoAda}$ defined in Section~\ref{sec:utxo}.
 
 %%
 %% Figure Functions for Stake Distribution

@@ -34,9 +34,10 @@
 \setpremisesspace{20pt}
 
 % data for Deliverable header -- added by KH from an EU H2020 project template
-\DeliverableNumber{SL-D6}
-\DeliverableTitle{A Formal Specification of the Cardano Ledger with Plutus
-Integration}{Formal Cardano Ledger with Plutus Spec.}
+\DeliverableNumber{XX-XX}
+\DeliverableTitle{A Formal Specification of the Cardano Ledger with a Native
+Multicurrency Implementation}
+{Formal Cardano Ledger with MC Spec.}
 \DeliverableResponsible{Formal Methods Team}
 %\EditorName{Jared Corduan, \IOHK}
 \Authors{
@@ -167,6 +168,7 @@ Integration}{Formal Cardano Ledger with Plutus Spec.}
 \newcommand{\RdmrsHash}{\type{RdmrsHash}}
 \newcommand{\Script}{\type{Script}}
 \newcommand{\ScriptPlutus}{\type{Script}_{plc}}
+\newcommand{\ScriptMPS}{\type{Script}_{mps}}
 \newcommand{\ScriptMSig}{\type{Script}_{msig}}
 \newcommand{\ScriptV}{\type{Script_{v}}}
 \newcommand{\Datum}{\type{Datum}}
@@ -183,6 +185,7 @@ Integration}{Formal Cardano Ledger with Plutus Spec.}
 \newcommand{\Credential}{\type{Credential}}
 \newcommand{\CurrencyId}{\type{CurrencyId}}
 \newcommand{\Token}{\type{Token}}
+\newcommand{\CurrencyID}{\type{CurrencyID}}
 \newcommand{\Quantity}{\type{Quantity}}
 \newcommand{\QuantityPM}{\type{Quantity}^{\pm}}
 \newcommand{\ValuePM}{\type{Value}^{\pm}}
@@ -331,15 +334,9 @@ Integration}{Formal Cardano Ledger with Plutus Spec.}
 \tableofcontents
 \listoffigures
 
-\include{notation}
-
-\include{protocol-parameters}
-
 \include{transactions}
 
 \include{utxo}
-
-\include{ledger}
 
 \include{epoch}
 
