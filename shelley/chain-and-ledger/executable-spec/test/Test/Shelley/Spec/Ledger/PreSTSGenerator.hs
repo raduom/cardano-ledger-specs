@@ -62,7 +62,7 @@ import           Shelley.Spec.Ledger.Tx (pattern Tx, pattern TxBody, pattern TxO
 import           Shelley.Spec.Ledger.TxData (pattern AddrBase, pattern DCertDeleg,
                      pattern DCertPool, pattern DeRegKey, pattern Delegate, pattern Delegation,
                      pattern KeyHashObj, pattern RegKey, pattern RetirePool, StakeCreds (..),
-                     Wdrl (..), UTxOOut(..), getAddress)
+                     Wdrl (..), getAddress)
 import           Shelley.Spec.Ledger.UTxO (pattern UTxO, balance, makeWitnessVKey)
 import           Shelley.Spec.Ledger.Validation (ValidationError(..), Validity (..))
 import           Shelley.Spec.Ledger.Value
