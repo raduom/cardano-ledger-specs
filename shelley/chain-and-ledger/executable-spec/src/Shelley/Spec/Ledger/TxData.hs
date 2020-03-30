@@ -490,10 +490,10 @@ instance
          2 -> fromCBOR                     >>= \x -> pure (2, \t -> t { _txfee    = x })
          3 -> fromCBOR                     >>= \x -> pure (3, \t -> t { _ttl      = x })
          4 -> (unwrapCborSeq <$> fromCBOR) >>= \x -> pure (4, \t -> t { _certs    = x })
-         5 -> fromCBOR                      >>= \x -> pure (3, \t -> t { _forge    = x })
-         6 -> fromCBOR                     >>= \x -> pure (5, \t -> t { _wdrls    = x })
-         7 -> fromCBOR                     >>= \x -> pure (6, \t -> t { _txUpdate = Just x })
-         8 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _mdHash   = Just x })
+         5 -> fromCBOR                      >>= \x -> pure (5, \t -> t { _forge    = x })
+         6 -> fromCBOR                     >>= \x -> pure (6, \t -> t { _wdrls    = x })
+         7 -> fromCBOR                     >>= \x -> pure (7, \t -> t { _txUpdate = Just x })
+         8 -> fromCBOR                     >>= \x -> pure (8, \t -> t { _mdHash   = Just x })
          k -> invalidKey k
      let requiredFields :: Map Int String
          requiredFields = Map.fromList $
