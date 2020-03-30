@@ -170,14 +170,6 @@ utxoInductive = do
 
   let outputValues = [getValue utxoout | utxoout <- Set.toList (range (txouts slot txb))]
   all (zeroV <=) outputValues ?! NegativeOutputsUTxO
-<<<<<<< HEAD
-
-  let (Value vls) = _forge txb
-  let cids = Map.keys vls
-  all (adaID /=) cids  ?! ForgingAda
-
-=======
->>>>>>> fix rebase stuff
 
   let (Value vls) = _forge txb
   let cids = Map.keys vls

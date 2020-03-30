@@ -450,14 +450,13 @@ instance
         pure $ DC a
       k -> invalidKey k
 
-
 instance ToCBOR Rdmrs where
-  toCBOR = toCBOR . CBORMap . getRMs
+  toCBOR = mapToCBOR . getRMs
     where
       getRMs (Rdmrs rm) = rm
 
 instance FromCBOR Rdmrs where
-  fromCBOR = Rdmrs . unwrapCBORMap <$> fromCBOR
+  fromCBOR = Rdmrs <$> mapFromCBOR
 
 instance ToCBOR ScrTypes
  where

@@ -16,7 +16,7 @@ import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR),
                      encodeListLen, enforceSize)
 import           Data.Map.Strict (Map, empty)
 import           Shelley.Spec.Ledger.Coin
-import           Shelley.Spec.Ledger.Serialization (CBORMap (..))
+import           Shelley.Spec.Ledger.Serialization (mapFromCBOR, mapToCBOR)
 
 -- | comparing required resources for Plutus scripts
 instance Ord ExUnits where
@@ -25,7 +25,7 @@ instance Ord ExUnits where
 
 -- | cost models per language
 data CostModels = CostModels (Map Language CostMod)
-  deriving (Show, Eq, Generic)
+  deriving (Ord, Show, Eq, Generic)
 
 -- | empty cost model map
 defaultModels :: CostModels
@@ -34,12 +34,12 @@ defaultModels = CostModels empty
 instance NoUnexpectedThunks CostModels
 
 instance ToCBOR CostModels where
-  toCBOR = toCBOR . CBORMap . getCMs
+  toCBOR = mapToCBOR . getCMs
     where
       getCMs (CostModels cms) = cms
 
 instance FromCBOR CostModels where
-  fromCBOR = CostModels . unwrapCBORMap <$> fromCBOR
+  fromCBOR = CostModels <$> mapFromCBOR
 
 -- | language tags
 newtype Language = Language Word8
@@ -62,7 +62,7 @@ data CostMod = CostMod
   { -- | The types of computational resources relevant to the cost model
       smt                   :: ExUnits
     , smtElse               :: ExUnits
-  } deriving (Show, Eq, Generic)
+  } deriving (Ord, Show, Eq, Generic)
 
 instance NoUnexpectedThunks CostMod
 
@@ -82,7 +82,7 @@ data Prices = Prices
     initPrim               :: Coin
   , memPrim                :: Coin
   , stepPrim               :: Coin
-  } deriving (Show, Eq, Generic)
+  } deriving (Ord, Show, Eq, Generic)
 
 instance NoUnexpectedThunks Prices
 

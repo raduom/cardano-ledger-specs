@@ -382,6 +382,10 @@ instance ToCBOR PParamsUpdate where
           , encodeMapElement 17 toCBOR         =<< _d               ppup
           , encodeMapElement 18 toCBOR         =<< _extraEntropy    ppup
           , encodeMapElement 19 toCBOR         =<< _protocolVersion ppup
+          , encodeMapElement 19 toCBOR         =<< _costmdls        ppup
+          , encodeMapElement 19 toCBOR         =<< _prices          ppup
+          , encodeMapElement 19 toCBOR         =<< _maxTxExUnits    ppup
+          , encodeMapElement 19 toCBOR         =<< _maxBlockExUnits ppup
           ]
         n = fromIntegral $ length l
     in encodeMapLen n <> fold l
@@ -410,6 +414,10 @@ emptyPParamsUpdate   = PParams
   , _d               = SNothing
   , _extraEntropy    = SNothing
   , _protocolVersion = SNothing
+  , _costmdls        = SNothing
+  , _prices          = SNothing
+  , _maxTxExUnits    = SNothing
+  , _maxBlockExUnits = SNothing
   }
 
 instance FromCBOR PParamsUpdate where
@@ -436,6 +444,10 @@ instance FromCBOR PParamsUpdate where
          17 -> fromCBOR         >>= \x -> pure (17, \up -> up { _d               = SJust x })
          18 -> fromCBOR         >>= \x -> pure (18, \up -> up { _extraEntropy    = SJust x })
          19 -> fromCBOR         >>= \x -> pure (19, \up -> up { _protocolVersion = SJust x })
+         20 -> fromCBOR         >>= \x -> pure (20, \up -> up { _costmdls        = SJust x })
+         21 -> fromCBOR         >>= \x -> pure (21, \up -> up { _prices          = SJust x })
+         22 -> fromCBOR         >>= \x -> pure (22, \up -> up { _maxTxExUnits    = SJust x })
+         23 -> fromCBOR         >>= \x -> pure (23, \up -> up { _maxBlockExUnits = SJust x })
          k -> invalidKey k
      let fields = fst <$> mapParts :: [Int]
      unless (nub fields == fields)
@@ -480,11 +492,15 @@ updatePParams pp ppup = PParams
   , _d = fromMaybe' (_d pp) (_d ppup)
   , _extraEntropy = fromMaybe' (_extraEntropy pp) (_extraEntropy ppup)
   , _protocolVersion = fromMaybe' (_protocolVersion pp) (_protocolVersion ppup)
+  , _costmdls = fromMaybe' (_costmdls pp) (_costmdls ppup)
+  , _prices = fromMaybe' (_prices pp) (_prices ppup)
+  , _maxTxExUnits = fromMaybe' (_maxTxExUnits pp) (_maxTxExUnits ppup)
+  , _maxBlockExUnits = fromMaybe' (_maxBlockExUnits pp) (_maxBlockExUnits ppup)
   }
   where
     fromMaybe' :: a -> StrictMaybe a -> a
     fromMaybe' x = fromMaybe x . strictMaybeToMaybe
-    
+
 -- | CBOR
 
 -- | numbers correspond to language tags (plcV1 = 1)

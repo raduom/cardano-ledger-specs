@@ -99,7 +99,7 @@ import           Shelley.Spec.Ledger.Keys (AnyKeyHash, GenDelegs (..), GenKeyHas
                      undiscriminateKeyHash)
 import qualified Shelley.Spec.Ledger.MetaData as MD
 import           Shelley.Spec.Ledger.PParams (PParams, ProposedPPUpdates (..), Update (..),
-                     activeSlotVal, emptyPPPUpdates, emptyPParams, _activeSlotCoeff, _d,
+                     activeSlotVal, emptyPPPUpdates, emptyPParams, _activeSlotCoeff, _d, _prices,
                      _keyDecayRate, _keyDeposit, _keyMinRefund, _minfeeA, _minfeeB, _rho, _tau)
 import           Shelley.Spec.Ledger.Slot (Duration (..), EpochNo (..), SlotNo (..), epochInfoEpoch,
                      epochInfoFirst, epochInfoSize, (+*), (-*))
@@ -107,7 +107,7 @@ import           Shelley.Spec.Ledger.Tx (Tx (..), extractGenKeyHash, extractKeyH
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix, TxWitness(..),
                      MIRCert (..), PoolCert (..), PoolMetaData (..), PoolParams (..), Ptr (..), UTxOIn(..),
                      RewardAcnt (..), TxBody (..), TxId (..), TxIn (..), TxOut (..), Url (..), UTxOOut(..),
-                     Wdrl (..), getRwdCred, witKeyHash, getAddressTx, getValueTx)
+                     Wdrl (..), getRwdCred, witKeyHash, getAddress, getValue)
 import           Shelley.Spec.Ledger.UTxO (UTxO (..), balance, totalDeposits, txinLookup, txins,
                      txouts, txup, verifyWitVKey, mkUTxOout)
 import           Shelley.Spec.Ledger.Validation (ValidationError (..), Validity (..))
@@ -508,6 +508,7 @@ genesisId =
    (SlotNo 0)
    SNothing
    SNothing
+   SNothing
    SNothing)
 
 
@@ -678,7 +679,7 @@ txsize (Tx
 -- |Minimum fee calculation
 minfee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Coin
 minfee pp tx = (Coin $ fromIntegral (_minfeeA pp) * txsize tx + fromIntegral (_minfeeB pp))
-  + txscrfee (size $ _scripts $ _txwits tx) (_prices pp) (_txexunits tx)
+  + scriptFee (toInteger $ size $ _scripts $ _txwits tx) (_prices pp) (_exunits $ _body tx)
 
 -- |Determine if the fee is large enough
 validFee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Validity
