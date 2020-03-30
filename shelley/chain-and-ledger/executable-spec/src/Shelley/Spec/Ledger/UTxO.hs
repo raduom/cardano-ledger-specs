@@ -58,7 +58,6 @@ import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), pattern
                      pattern Delegate, pattern Delegation, PoolCert (..), PoolParams (..),
                      TxBody (..), TxId (..), TxIn (..), Wdrl (..), UTxOOut(..),
                      WitVKey (..), getRwdCred, getAddress, getValue, getAddressTx, getValueTx)
-import           Shelley.Spec.Ledger.Updates (Update)
 
 import           Data.Coerce (coerce)
 import           Shelley.Spec.Ledger.Delegation.Certificates (DCert (..), StakePools (..), dvalue,
