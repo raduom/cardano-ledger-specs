@@ -108,7 +108,7 @@ current Shelley ledger design.
       \\
       \var{utxoout}
       & \UTxOOut
-      & \Addr \to \Value \\
+      & \Addr \times \Value \\
 %      & \text{utxo outputs}
       \var{utxo}
       & \UTxO
@@ -187,10 +187,12 @@ Figure~\ref{fig:defs:tx-mc-eval}. As inputs, it takes
 
 \begin{itemize}
 \item the script getting evaluated
+\item the currency ID of the currency being forged
 \item the current slot number,
 \item a set of key hashes (needed to use MSig scripts as MC scripts),
-\item a value (this will come from the forge value of a transaction, and contains
-only the tokens of the currency specific to the script)
+\item a value (this will come from the forge value of a transaction)
+\item the transaction body
+\item the UTxO
 \end{itemize}
 
 The constructors which make up the MC scheme are used to express the following
@@ -199,9 +201,12 @@ aspects of monetary policy :
 \begin{itemize}
 \item $\type{JustMSig}$~ :~ evaluates an MSig script
 
-\item $\type{MaxMinTimedTotal}$~:~checks that the quantity of each type of token
-in the currency being forged is allowed to be forged during the specified interval.
-This can be used to restrict the total amount of each type of token of this
+\item $\type{MaxMinTimedTotal}$~:~checks that the total quantities of the types
+tokens of this currency being forged during the specified interval are within the
+specified limits. This includes the tokens already in the UTxO
+and those being forged by the transaction.
+
+This constructor can be used to restrict the total amount of each type of token of this
 currency that can ever exist, restrict the types (names) of tokens that can
 exist in this currency, and pace the forging of specific tokens according by time intervals.
 This constructor can only be used when all the token types the currency will ever
@@ -211,27 +216,29 @@ have are known in advance.
 \end{itemize}
 
 \begin{figure*}[htb]
-  \emph{MC Script evaluation}
-  %
   \begin{align*}
-    & \fun{evalMPSScript} \in\ScriptMPS\to\Slot\to\powerset\KeyHash \to
-    \Value \to\Bool  \\
+    & \fun{evalMPSScript} \in\ScriptMPS\to\ScriptHash\to\Slot\to\powerset\KeyHash \\
+    &~~~~\to\TxBody\to\UTxO \to\Bool  \\
     %
-    & \fun{evalMPSScript}  ~(\type{JustMSig}~s)~\var{slot}~\var{vhks}~\var{val}  \\
+    & \fun{evalMPSScript}  ~(\type{JustMSig}~s)~\var{cid}~\var{slot}~\var{vhks}~\var{val} ~\var{txb}~\var{utxo} \\
     &~~~~ =~ \fun{evalMultiSigScript}~s~\var{vhks} \\
     %
     & \fun{evalMPSScript}
-     ~(\type{MaxMinTimedTotal}~\var{trs})~\var{slot}~\var{vhks}~\var{val}
+     ~(\type{MaxMinTimedTotal}~\var{trs})~\var{cid}~\var{slot}~\var{vhks}~\var{val}
+     ~\var{txb}~\var{utxo}
       \\
-    &~~~~ =~\forall~ cid~ \mapsto ~tkns ~\in~ \var{val}~:~ \\
-    &~~~~ \forall t \mapsto q \in \var{tkns}, \\
-    &~~~~ (t~\in~\dom~ \var{trs}) \wedge \\
+    &~~~~ =~\forall~\var{cid}~ \mapsto ~tkns ~\in~ \var{val}~+~
+      \sum_{u\in\range~{utxo}}~{\fun{getValue}~u}~:~ \\
+    &~~~~ \forall~ t \mapsto q \in \var{tkns}, \\
+    &~~~~ (t~\in~\dom~ \var{trs})~ \wedge \\
     &~~~~ (\forall~ t \mapsto (s_f, s_l, min_q, max_q) \in \var{trs} \\
-    &~~~~ (min_q ~\leq q~\leq ~max_q) \wedge (s_f~\leq s~\leq ~ s_l))\\
+    &~~~~ (min_q ~\leq q~\leq ~max_q) \wedge (s_f~\leq \var{slot}~\leq ~ s_l))\\
     %
-    &\fun{evalMPSScript}~(\type{RequireAll}~ls)~\var{slot}~\var{vhks}~\var{val}
+    &\fun{evalMPSScript}~(\type{RequireAll}~ls)~\var{cid}~\var{slot}~\var{vhks}
+    ~\var{val}~\var{txb}~\var{utxo}
    \\
-    &~~~~ = \forall ~s~ \in~ ls~:~\fun{evalMPSScript}~s~\var{slot}~\var{vhks}~\var{val}\\
+    &~~~~ = \forall ~s'~ \in~ ls~:~\fun{evalMPSScript}~s'~\var{cid}~\var{slot}~\var{vhks}
+    ~\var{val}~\var{txb}~\var{utxo}\\
   \end{align*}
   \caption{Multicurrency Script Evaluation}
   \label{fig:defs:tx-mc-eval}
@@ -241,31 +248,31 @@ have are known in advance.
 
 In the Shelley spec, there is a script validation function which
 is used to evaluate all types of native (ledger-rule-defined) scripts.
-In Figure~\ref{fig:defs:tx-mc-valid}, we modify this function to call the
+In Figure~\ref{fig:defs:tx-mc-valid}, we modify this function to also call the
 evaluation function specific to the MPS script type being added in this spec.
 
-Note that the value that is passed to the evaluation function of the MPS script
-contains only the tokens of the currency for which the script is being validated.
+The arguments passed to the $\fun{validateScript}$ function include all those
+needed for MPS and MSig script evaluation. Because of the extra arguments
+(the slot number and the UTxO), we also modify the call to this function, made
+by the UTXOW rule.
 
 \begin{figure*}[htb]
-  \emph{MC Script validation}
-    %
     \begin{align*}
-      \fun{validateScript} & \in\Script\Slot\to\Tx\to\Bool & \text{validate
-                                                        script} \\
-      \fun{validateScript} & ~\var{s}~\var{slot}~\var{tx}=
+      \fun{validateScript} & \in\Script\Slot\to\Tx\to\Bool \\
+      \fun{validateScript} & ~\var{s}~\var{slot}~\var{tx}~\var{utxo}=
                              \begin{cases}
                                \fun{evalMultiSigScript}~s~vhks & \text{if}~s \in\MSig \\
-                               \fun{evalMPSScript}~\var{slot}~\var{vhks}~\var{val} &
-                                \text{if}~s \in\ScriptMPS \\
+                               \fun{evalMPSScript}~s~\var{cid}~\var{slot}~\var{vhks}~\var{val} \\
+                                ~~~~(\fun{txbody}~tx)~\var{utxo} & \text{if}~s \in\ScriptMPS \\
                                \mathsf{False} & \text{otherwise}
                              \end{cases} \\
                            & ~~~~\where \var{vhks}\leteq \{\fun{hashKey}~vk \vert
                              vk \in \dom(\fun{txwitsVKey}~\var{tx})\} \\
-                           & ~~~~~~~~ \var{val} \leteq \fun{hashScript}~s~\restrictdom~(\fun{forge}~
-                              (\fun{txbody}~tx))
+                           & ~~~~~~~~ \var{val} \leteq \fun{forge}~
+                              (\fun{txbody}~tx) \\
+                           & ~~~~~~~~ \var{cid} \leteq \fun{hashScript}~s
     \end{align*}
-  \caption{Multicurrency Script Evaluation}
+  \caption{Script Validation}
   \label{fig:defs:tx-mc-valid}
 \end{figure*}
 

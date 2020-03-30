@@ -23,7 +23,7 @@ UTxO transition system, see Figure~\ref{fig:functions:insouts}. These include:
     \nextdef
     & \fun{outs} \in \TxBody \to \UTxO \\
     & \text{tx outputs as UTxO} \\
-    & \fun{outs} ~ \var{slot}~\var{txb} =
+    & \fun{outs} ~\var{txb} =
         \left\{
           (\fun{txid} ~ \var{txb}, \var{ix}) \mapsto \fun{getOut}~\var{txout} ~
           \middle|~
@@ -158,8 +158,8 @@ That step is part of witnessing, i.e. the UTXOW rule, see below.
     & \text{returns the outputs in the UTxO with only the Ada coins} \\
     \nextdef
     & \fun{ubalance} \in \UTxO \to \Value \\
-    & \fun{ubalance} ~ utxo = \sum_{\wcard\mapsto\var{(q,s)}\in~\var{utxo}}
-    \fun{getValue}~\var{q} \\
+    & \fun{ubalance} ~ utxo = \sum_{\wcard\mapsto\var{u}\in~\var{utxo}}
+    \fun{getValue}~\var{u} \\
     & \text{UTxO balance} \\
   \end{align*}
   %
@@ -173,9 +173,9 @@ That step is part of witnessing, i.e. the UTXOW rule, see below.
         ~\fun{forge}~\var{txb} \\
     & \text{value consumed} \\
     \nextdef
-    & \fun{produced} \in \Slot \to \PParams \to \StakePools \to \TxBody \to \Value \\
-    & \fun{produced}~\var{slot}~\var{pp}~\var{stpools}~\var{txb} = \\
-    &~~\ubalance{(\fun{outs}{slot}~{txb})}  + \fun{coinToValue}(\txfee{txb} \\
+    & \fun{produced} \to \PParams \to \StakePools \to \TxBody \to \Value \\
+    & \fun{produced}~\var{pp}~\var{stpools}~\var{txb} = \\
+    &~~\ubalance{(\fun{outs}~{txb})}  + \fun{coinToValue}(\txfee{txb} \\
     &~~+ \deposits{pp}{stpools}~{(\txcerts{txb})})\\
     & \text{value produced} \\
   \end{align*}
@@ -307,8 +307,8 @@ also be a forging script.
     & ~~~~~i\in\fun{txinsScript}~{(\fun{txins~\var{txb}})}~{utxo}\} \\
     \cup & ~~\{ \fun{stakeCred_{r}}~\var{a} \mid a \in \dom (\AddrRWDScr
            \restrictdom \fun{txwdrls}~\var{txb}) \} \\
-      \cup & ~~(\AddrScr \cap \fun{certWitsNeeded}~{txb})
-      \cup & ~~\{ \var{cid} \in \dom~(\fun{forge}~{txb}) \} \\
+      \cup & ~~(\AddrScr \cap \fun{certWitsNeeded}~{txb}) \\
+      \cup & ~~\dom~(\fun{forge}~{txb}) \\
       & \where \\
       & ~~~~~~~ \var{txb}~=~\txbody{tx} \\
   \end{align*}
