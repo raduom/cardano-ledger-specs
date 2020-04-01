@@ -192,7 +192,7 @@ Figure~\ref{fig:defs:tx-mc-eval}. As inputs, it takes
 \item a set of key hashes (needed to use MSig scripts as MC scripts),
 \item a value (this will come from the forge value of a transaction)
 \item the transaction body
-\item the UTxO
+\item the outputs of the transaction as a UTxO finite map (with addresses and values)
 \end{itemize}
 
 The constructors which make up the MC scheme are used to express the following
@@ -201,18 +201,11 @@ aspects of monetary policy :
 \begin{itemize}
 \item $\type{JustMSig}$~ :~ evaluates an MSig script
 
-\item $\type{MaxMinTimedTotal}$~:~checks that the total quantities of the types
-tokens of this currency being forged during the specified interval are within the
-specified limits. This includes the tokens already in the UTxO
-and those being forged by the transaction.
-
-This constructor can be used to restrict the total amount of each type of token of this
-currency that can ever exist, restrict the types (names) of tokens that can
-exist in this currency, and pace the forging of specific tokens according by time intervals.
-This constructor can only be used when all the token types the currency will ever
-have are known in advance.
+\item
 
 \item $\type{RequireAll}$~:~evaluates all MPS scripts in the given set
+
+\item
 \end{itemize}
 
 \begin{figure*}[htb]
@@ -220,25 +213,52 @@ have are known in advance.
     & \fun{evalMPSScript} \in\ScriptMPS\to\ScriptHash\to\Slot\to\powerset\KeyHash \\
     &~~~~\to\TxBody\to\UTxO \to\Bool  \\
     %
-    & \fun{evalMPSScript}  ~(\type{JustMSig}~s)~\var{cid}~\var{slot}~\var{vhks}~\var{val} ~\var{txb}~\var{utxo} \\
+    & \fun{evalMPSScript}  ~(\type{JustMSig}~s)~\var{cid}~\var{slot}~\var{vhks}~\var{val} ~\var{txb}~\var{txouts} \\
     &~~~~ =~ \fun{evalMultiSigScript}~s~\var{vhks} \\
     %
     & \fun{evalMPSScript}
-     ~(\type{MaxMinTimedTotal}~\var{trs})~\var{cid}~\var{slot}~\var{vhks}~\var{val}
-     ~\var{txb}~\var{utxo}
+     ~(\type{RealizeTrancheTokens}~\var{tts})~\var{cid}~
+     \var{slot}~\var{vhks}~\var{val}
+     ~\var{txb}~\var{txouts}
       \\
-    &~~~~ =~\forall~\var{cid}~ \mapsto ~tkns ~\in~ \var{val}~+~
-      \sum_{u\in\range~{utxo}}~{\fun{getValue}~u}~:~ \\
-    &~~~~ \forall~ t \mapsto q \in \var{tkns}, \\
-    &~~~~ (t~\in~\dom~ \var{trs})~ \wedge \\
-    &~~~~ (\forall~ t \mapsto (s_f, s_l, min_q, max_q) \in \var{trs} \\
-    &~~~~ (min_q ~\leq q~\leq ~max_q) \wedge (s_f~\leq \var{slot}~\leq ~ s_l))\\
+    &~~~~ =~\forall~\var{cid}~ \mapsto ~tkns ~\in~ \var{val}~:~ \\
+    &~~~~ \forall~ t \mapsto q ~\in~\var{tkns}, \\
+    &~~~~ ((t~\notin~ \dom~\var{tts})~\Rightarrow \\
+    &~~~~ t~\in~\{~\fun{renameToken}~{t_t}~\vert~t_t~\in~\dom~{tts}~\} ~\wedge \\
+    &~~~~ (\forall ~t_t \mapsto q_t~\in~\var{tts}, ~\fun{renameToken}~t~=~t_t~\Rightarrow \\
+    &~~~~ t_t\mapsto (-q)~\in~\var{tkns}~\wedge~\vert q\vert~\leq~q_t)) \\
+    &~~~~ \wedge  \\
+    &~~~~ ((t~\in~ \dom~\var{tts})~\Rightarrow \\
+    &~~~~ (\fun{renameToken}~{t}~\in~\dom~\var{tkns}) \\
+    &~~~~ \wedge ~(\forall~\fun{renameToken}~t\mapsto q_n~\in~\var{tkns},~q_n=-q) \\
+    &~~~~ \wedge ~(\forall~t\mapsto q_t~\in~\var{tts}, \vert q\vert~\leq~q_t))
+    \\~\\
+    %
+    & \fun{evalMPSScript}
+     ~(\type{TrancheTokens}~\var{tts}~\var{txin})~\var{cid}~\var{slot}~\var{vhks}~\var{val}
+     ~\var{txb}~\var{txouts}
+      \\
+    &~~~~ =~(\var{cid}\mapsto\var{tts}~\in~\var{val})~ \wedge~(\var{txin}~\in~\fun{txins}~{txb}) \\~\\
+    %
+    & \fun{evalMPSScript}
+     ~(\type{FreshTokens})~\var{cid}~\var{slot}~\var{vhks}~\var{val}
+     ~\var{txb}~\var{txouts}
+      \\
+    &~~~~ =~\forall~\var{cid}~ \mapsto ~tkns ~\in~ \var{val}~:~ \\
+    &~~~~ \forall~t~\in~\var{tkns},~
+        \fun{nameToken}~(\fun{indexof}~\var{t}~\var{tkns},~\fun{txins}~{txb})~=~t \\~\\
     %
     &\fun{evalMPSScript}~(\type{RequireAll}~ls)~\var{cid}~\var{slot}~\var{vhks}
-    ~\var{val}~\var{txb}~\var{utxo}
+    ~\var{val}~\var{txb}~\var{txouts}
    \\
     &~~~~ = \forall ~s'~ \in~ ls~:~\fun{evalMPSScript}~s'~\var{cid}~\var{slot}~\var{vhks}
-    ~\var{val}~\var{txb}~\var{utxo}\\
+    ~\var{val}~\var{txb}~\var{txouts}\\
+    %
+    &\fun{evalMPSScript}~(\type{RequireOr}~ls)~\var{cid}~\var{slot}~\var{vhks}
+    ~\var{val}~\var{txb}~\var{txouts}
+   \\
+    &~~~~ = \exists ~s'~ \in~ ls~:~\fun{evalMPSScript}~s'~\var{cid}~\var{slot}~\var{vhks}
+    ~\var{val}~\var{txb}~\var{txouts}\\
   \end{align*}
   \caption{Multicurrency Script Evaluation}
   \label{fig:defs:tx-mc-eval}
