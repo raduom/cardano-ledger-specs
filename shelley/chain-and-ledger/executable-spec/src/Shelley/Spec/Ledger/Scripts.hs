@@ -124,12 +124,19 @@ countMSigNodes (RequireAllOf msigs) = 1 + sum (map countMSigNodes msigs)
 countMSigNodes (RequireAnyOf msigs) = 1 + sum (map countMSigNodes msigs)
 countMSigNodes (RequireMOf _ msigs) = 1 + sum (map countMSigNodes msigs)
 
-newtype DataHash crypto = DataHash (Hash (HASH crypto) Data)
+newtype DatumHash crypto = DatumHash (Hash (HASH crypto) Datum)
   deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord)
 
+-- | Hashes datum objects
+hashDatum
+  :: Crypto crypto
+  => Datum 
+  -> DatumHash crypto
+hashDatum dv =
+  DatumHash $ hashWithSerialiser (\x -> toCBOR x) dv
 
-deriving instance Crypto crypto => ToCBOR (DataHash crypto)
-deriving instance Crypto crypto => FromCBOR (DataHash crypto)
+deriving instance Crypto crypto => ToCBOR (DatumHash crypto)
+deriving instance Crypto crypto => FromCBOR (DatumHash crypto)
 
 -- | Hashes native multi-signature script, appending the 'nativeMultiSigTag' in
 -- front and then calling the script CBOR function.
@@ -177,14 +184,21 @@ getKeyCombinations (RequireMOf m msigs) =
 
 -- | Use these from Plutus
 -- TODO make this Plutus type
-newtype Data = Data Integer
-  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord, ToCBOR, FromCBOR)
+newtype Datum = Datum Integer
+  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord)
 
 -- | TODO temporary validator always returns true and same amount of resources
-runPLCScript :: CostMod -> ScriptPLC -> [Data] -> ExUnits -> (IsValidating, ExUnits)
+runPLCScript :: CostMod -> ScriptPLC -> [Datum] -> ExUnits -> (IsValidating, ExUnits)
 runPLCScript _ _ _ _ = (IsValidating Yes, ExUnits 0 0)
 
 -- CBOR
+
+instance ToCBOR Datum where
+  toCBOR (Datum dv) =
+    toCBOR dv
+
+instance FromCBOR Datum where
+  fromCBOR = Datum <$> fromCBOR
 
 instance (Crypto crypto) =>
   ToCBOR (MultiSig crypto) where

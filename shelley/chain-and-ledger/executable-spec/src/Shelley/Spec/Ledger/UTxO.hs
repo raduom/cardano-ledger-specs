@@ -41,7 +41,7 @@ import           Cardano.Binary (FromCBOR (..), ToCBOR (..))
 import           Cardano.Crypto.Hash (hashWithSerialiser)
 import           Cardano.Prelude (NoUnexpectedThunks (..))
 import           Data.Foldable (toList)
-import           Data.Map.Strict (Map, keys)
+import           Data.Map.Strict (Map, keys, empty, insert)
 import qualified Data.Map.Strict as Map
 import qualified Data.Maybe as Maybe
 import           Data.Set (Set)
@@ -67,7 +67,7 @@ import           Shelley.Spec.Ledger.Delegation.Certificates (DCert (..), StakeP
                      requiresVKeyWitness)
 import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Value
-
+import           Shelley.Spec.Ledger.CostMod
 
 -- |The unspent transaction outputs.
 newtype UTxO crypto
@@ -232,6 +232,41 @@ scriptCred
 scriptCred (KeyHashObj _)  = Nothing
 scriptCred (ScriptHashObj hs) = Just hs
 
+-- | make hash-indexed structure of scripts
+indexedScripts
+  :: Tx
+  -> Map (ScriptHash crypto) Script
+indexedScripts tx
+  = foldl (\m s -> insert (hashScript s) s m) empty (_scripts $ _wits tx)
+
+-- | make hash-indexed structure of datums
+indexedDatums
+  :: Tx
+  -> Map (DatumHash crypto) Datum
+indexedScripts tx
+  = foldl (\m d -> insert (hashDatum d) d m) empty (_dats $ _wits tx)
+
+-- | find cost model for the script type
+getmdl
+  :: Script crypto
+  -> PParams
+  -> CostMod
+getmdl (PlutusScriptV1 s) pp
+  = findWithDefault defaultModel plcV1 (_costmdls pp)
+
+findRdmr
+  :: Tx crypto
+  ->
+findRdmr tx ci
+
+findRdmr∈GoguenTx→CurItem→PData
+get empty set or redeemer corresponding to index
+findRdmrtx it={r|
+(certTag,indexofit(txcertstxb))7→r∈txrdmrstxw
+∨(wdrlTag,indexofit(txwdrlstxb))7→r∈txrdmrstxw
+∨(forgeTag,indexofit(forgetxb))7→r∈txrdmrstxw
+∨(inputTag,indexofit(txinputstxb))7→r∈txrdmrstxw}
+wheretxb=txbodytxtxw=txwitstx
 
 -- | Computes the set of script hashes required to unlock the transcation inputs
 -- and the withdrawals.

@@ -39,6 +39,8 @@ library
                      Shelley.Spec.Ledger.OCert
                      Shelley.Spec.Ledger.Tx
                      Shelley.Spec.Ledger.TxData
+                     Shelley.Spec.Ledger.ShelleyTxData
+                     Shelley.Spec.Ledger.ShelleyTx
                      Shelley.Spec.Ledger.Validation
                      Shelley.Spec.Ledger.Scripts
                      Shelley.Spec.Ledger.CostModel

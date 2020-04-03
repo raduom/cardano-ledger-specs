@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Shelley.Spec.Ledger.STS.Utxow
+module Shelley.Spec.Ledger.STS.ShelleyUtxow
   ( UTXOW
   , PredicateFailure(..)
   )
@@ -23,13 +23,12 @@ import           Cardano.Prelude (NoUnexpectedThunks (..), asks)
 import           Control.State.Transition
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq (filter)
-import qualified Data.Sequence.Strict as StrictSeq
 import qualified Data.Set as Set
 import           Data.Typeable (Typeable)
 import           Data.Word (Word8)
 import           GHC.Generics (Generic)
-import           Shelley.Spec.Ledger.BaseTypes (ShelleyBase, StrictMaybe (..), intervalValue,
-                     invalidKey, quorum, (==>))
+import           Shelley.Spec.Ledger.BaseTypes (ShelleyBase, intervalValue, invalidKey, quorum,
+                     (==>))
 import           Shelley.Spec.Ledger.Crypto
 import           Shelley.Spec.Ledger.Delegation.Certificates (isInstantaneousRewards)
 import           Shelley.Spec.Ledger.Keys
@@ -39,11 +38,8 @@ import           Shelley.Spec.Ledger.PParams (_d)
 import           Shelley.Spec.Ledger.STS.Utxo
 import           Shelley.Spec.Ledger.Tx
 import           Shelley.Spec.Ledger.TxData
-
 import           Shelley.Spec.Ledger.UTxO
 import           Shelley.Spec.Ledger.Validation (Validity (..))
-
-import qualified Shelley.Spec.Ledger.STS.ShelleyUtxow as ShelleyUtxow
 
 data UTXOW crypto
 
@@ -54,10 +50,9 @@ instance
   => STS (UTXOW crypto)
  where
   type State (UTXOW crypto) = UTxOState crypto
-  type Signal (UTXOW crypto) = ShelleyOrGoguenTx crypto
+  type Signal (UTXOW crypto) = Tx crypto
   type Environment (UTXOW crypto) = UtxoEnv crypto
   type BaseM (UTXOW crypto) = ShelleyBase
-  -- TODO or the failures in ShelleyUtxow
   data PredicateFailure (UTXOW crypto)
     = InvalidWitnessesUTXOW
     | MissingVKeyWitnessesUTXOW
@@ -129,9 +124,10 @@ utxoWitnessed
      , Signable (DSIGN crypto) (TxBody crypto)
      )
    => TransitionRule (UTXOW crypto)
-utxoWitnessed = judgmentContext >>=
-  \( TRC (UtxoEnv slot pp stakeCreds stakepools genDelegs, u, tx@(Tx txbody wits _ md))
-   ) -> do
+utxoWitnessed = do
+  TRC (UtxoEnv slot pp stakeCreds stakepools genDelegs, u, tx@(Tx txbody wits _ md))
+    <- judgmentContext
+
   let utxo = _utxo u
   let witsKeyHashes = Set.map witKeyHash wits
 
@@ -151,18 +147,14 @@ utxoWitnessed = judgmentContext >>=
 
   -- check metadata hash
   case (_mdHash txbody) of
-    SNothing  -> md == SNothing ?! BadMetaDataHashUTXOW
-    SJust mdh -> case md of
-                  SNothing  -> failBecause BadMetaDataHashUTXOW
-                  SJust md' -> hashMetaData md' == mdh ?! BadMetaDataHashUTXOW
+    Nothing  -> md == Nothing ?! BadMetaDataHashUTXOW
+    Just mdh -> case md of
+                  Nothing  -> failBecause BadMetaDataHashUTXOW
+                  Just md' -> hashMetaData md' == mdh ?! BadMetaDataHashUTXOW
 
   -- check genesis keys signatures for instantaneous rewards certificates
   let genSig = (Set.map undiscriminateKeyHash $ dom genMapping) ∩ Set.map witKeyHash wits
-      mirCerts =
-          StrictSeq.toStrict
-        . Seq.filter isInstantaneousRewards
-        . StrictSeq.getSeq
-        $ _certs txbody
+      mirCerts = Seq.filter isInstantaneousRewards $ _certs txbody
       GenDelegs genMapping = genDelegs
 
   coreNodeQuorum <- liftSTS $ asks quorum

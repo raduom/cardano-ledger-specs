@@ -43,6 +43,7 @@ module Shelley.Spec.Ledger.Tx
     -- witness data
   , WitVKey(..)
   , MultiSignatureScript
+  , ShelleyOrGoguenTx
   , validateScript
   , hashScript
   , txwitsScript
@@ -69,7 +70,7 @@ import           Data.Foldable (fold)
 import           Data.Map.Strict (Map)
                      encodeListLen, encodeWord, encodeMapLen, decodeListLenOf)
 import           Cardano.Crypto.Hash (hashWithSerialiser)
-import           Cardano.Ledger.Shelley.Crypto
+import           Shelley.Spec.Ledger.Crypto
 import           Cardano.Prelude (NoUnexpectedThunks (..))
 import           Data.Map.Strict (Map, insert, empty)
 import qualified Data.Map.Strict as Map
