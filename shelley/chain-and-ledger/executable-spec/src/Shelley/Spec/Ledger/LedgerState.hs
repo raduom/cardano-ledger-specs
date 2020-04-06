@@ -106,8 +106,8 @@ import           Shelley.Spec.Ledger.Slot (Duration (..), EpochNo (..), SlotNo (
 import           Shelley.Spec.Ledger.Tx (Tx (..), extractGenKeyHash, extractKeyHash)
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix, TxWitness(..),
                      MIRCert (..), PoolCert (..), PoolMetaData (..), PoolParams (..), Ptr (..), UTxOIn(..),
-                     RewardAcnt (..), TxBody (..), TxId (..), TxIn (..), TxOut (..), Url (..), UTxOOut(..),
-                     Wdrl (..), getRwdCred, witKeyHash, getAddress, getValue)
+                     RewardAcnt (..), TxBody (..), TxId (..), TxOut (..), Url (..),
+                     Wdrl (..), getRwdCred, witKeyHash, getAddress)
 import           Shelley.Spec.Ledger.UTxO (UTxO (..), balance, totalDeposits, txinLookup, txins,
                      txouts, txup, verifyWitVKey, mkUTxOout)
 import           Shelley.Spec.Ledger.Validation (ValidationError (..), Validity (..))

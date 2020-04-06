@@ -43,7 +43,6 @@ import           Shelley.Spec.Ledger.TxData
 import           Shelley.Spec.Ledger.UTxO
 import           Shelley.Spec.Ledger.Validation (Validity (..))
 
-import qualified Shelley.Spec.Ledger.STS.ShelleyUtxow as ShelleyUtxow
 
 data UTXOW crypto
 
@@ -54,10 +53,9 @@ instance
   => STS (UTXOW crypto)
  where
   type State (UTXOW crypto) = UTxOState crypto
-  type Signal (UTXOW crypto) = ShelleyOrGoguenTx crypto
+  type Signal (UTXOW crypto) = Tx crypto
   type Environment (UTXOW crypto) = UtxoEnv crypto
   type BaseM (UTXOW crypto) = ShelleyBase
-  -- TODO or the failures in ShelleyUtxow
   data PredicateFailure (UTXOW crypto)
     = InvalidWitnessesUTXOW
     | MissingVKeyWitnessesUTXOW
@@ -175,6 +173,54 @@ utxoWitnessed = judgmentContext >>=
 
   trans @(UTXO crypto)
     $ TRC (UtxoEnv slot pp stakeCreds stakepools genDelegs, u, tx)
+
+
+-- .do
+--   TRC (UtxoEnv slot pp stakeCreds stakepools genDelegs, u, tx@(Tx txbody wits _ md))
+--     <- judgmentContext
+--
+--   let utxo = _utxo u
+--   let witsKeyHashes = Set.map witKeyHash wits
+--
+--   -- check multi-signature scripts
+--   all (\(hs, validator) -> hashScript validator == hs
+--       && validateScript validator tx) (Map.toList $ txwitsScript tx)
+--     ?! ScriptWitnessNotValidatingUTXOW
+--
+--   scriptsNeeded utxo tx == Map.keysSet (txwitsScript tx)
+--     ?! MissingScriptWitnessesUTXOW
+--
+--   -- check VKey witnesses
+--   verifiedWits tx == Valid ?! InvalidWitnessesUTXOW
+--
+--   let needed = witsVKeyNeeded utxo tx genDelegs
+--   needed `Set.isSubsetOf` witsKeyHashes  ?! MissingVKeyWitnessesUTXOW
+--
+--   -- check metadata hash
+--   case (_mdHash txbody) of
+--     Nothing  -> md == Nothing ?! BadMetaDataHashUTXOW
+--     Just mdh -> case md of
+--                   Nothing  -> failBecause BadMetaDataHashUTXOW
+--                   Just md' -> hashMetaData md' == mdh ?! BadMetaDataHashUTXOW
+--
+--   -- check genesis keys signatures for instantaneous rewards certificates
+--   let genSig = (Set.map undiscriminateKeyHash $ dom genMapping) ∩ Set.map witKeyHash wits
+--       mirCerts = Seq.filter isInstantaneousRewards $ _certs txbody
+--       GenDelegs genMapping = genDelegs
+--
+--   coreNodeQuorum <- liftSTS $ asks quorum
+--   (    (not $ null mirCerts)
+--    ==> Set.size genSig >= fromIntegral coreNodeQuorum)
+--       ?! MIRInsufficientGenesisSigsUTXOW
+--   (    (not $ null mirCerts)
+--    ==> (0 < intervalValue (_d pp)))
+--     ?! MIRImpossibleInDecentralizedNetUTXOW
+--
+--   trans @(UTXO crypto)
+--     $ TRC (UtxoEnv slot pp stakeCreds stakepools genDelegs, u, tx)
+
+
+
 
 instance
   ( Crypto crypto

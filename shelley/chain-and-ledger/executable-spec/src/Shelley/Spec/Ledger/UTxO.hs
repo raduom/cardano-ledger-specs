@@ -41,7 +41,7 @@ import           Cardano.Binary (FromCBOR (..), ToCBOR (..))
 import           Cardano.Crypto.Hash (hashWithSerialiser)
 import           Cardano.Prelude (NoUnexpectedThunks (..))
 import           Data.Foldable (toList)
-import           Data.Map.Strict (Map, keys, empty, insert)
+import           Data.Map.Strict (Map, keys, empty, insert, findWithDefault)
 import qualified Data.Map.Strict as Map
 import qualified Data.Maybe as Maybe
 import           Data.Set (Set)
@@ -52,14 +52,15 @@ import           Shelley.Spec.Ledger.BaseTypes (strictMaybeToMaybe)
 import           Shelley.Spec.Ledger.Coin (Coin (..))
 import           Shelley.Spec.Ledger.Crypto
 import           Shelley.Spec.Ledger.Keys (AnyKeyHash, KeyDiscriminator (..), KeyPair, Signable,
-                     sKey, sign, vKey, verify)
-import           Shelley.Spec.Ledger.PParams (PParams, Update)
-import           Shelley.Spec.Ledger.Tx (Tx (..))
+                     hash, sKey, sign, vKey, verify)
+import           Shelley.Spec.Ledger.PParams (PParams, Update, _costmdls)
+import           Shelley.Spec.Ledger.Tx (Tx (..), _txwits)
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), pattern DeRegKey, PoolParams(..),
-                     pattern Delegate, pattern Delegation, PoolCert (..), TxBody (..), CurItem(..),
+                     pattern Delegate, pattern Delegation, PoolCert (..), TxBody (..),
                      UTxOIn (..), UTxOOut (..), OutND (..), TxOutP (..), UTxOOutP (..), XOutND (..),
-                     TxId (..), TxIn (..), TxOut (..), Wdrl (..), WitVKey (..), getRwdCred, utxoref,
-                     getValue, getAddress)
+                     TxId (..), TxIn (..), TxOut (..), Wdrl (..), WitVKey (..),
+                     RdmrPtr(..), Rdmrs(..), CurItem (..), ScrTypes(..),
+                     getRwdCred, utxoref, getValue, getAddress, _scripts, _dats, _rdmrs)
 import           Shelley.Spec.Ledger.Slot (SlotNo (..))
 
 import           Data.Coerce (coerce)
@@ -67,7 +68,7 @@ import           Shelley.Spec.Ledger.Delegation.Certificates (DCert (..), StakeP
                      requiresVKeyWitness)
 import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Value
-import           Shelley.Spec.Ledger.CostMod
+import           Shelley.Spec.Ledger.CostModel
 
 -- |The unspent transaction outputs.
 newtype UTxO crypto
@@ -234,39 +235,66 @@ scriptCred (ScriptHashObj hs) = Just hs
 
 -- | make hash-indexed structure of scripts
 indexedScripts
-  :: Tx
-  -> Map (ScriptHash crypto) Script
+  :: Crypto crypto
+  => Tx crypto
+  -> Map (ScriptHash crypto) (Script crypto)
 indexedScripts tx
-  = foldl (\m s -> insert (hashScript s) s m) empty (_scripts $ _wits tx)
+  = foldl (\m s -> insert (hashAnyScript s) s m) empty (_scripts $ _txwits tx)
 
 -- | make hash-indexed structure of datums
 indexedDatums
-  :: Tx
+  :: Crypto crypto
+  => Tx crypto
   -> Map (DatumHash crypto) Datum
-indexedScripts tx
-  = foldl (\m d -> insert (hashDatum d) d m) empty (_dats $ _wits tx)
+indexedDatums tx
+  = foldl (\m d -> insert (hashDatum d) d m) empty (_dats $ _txwits tx)
 
 -- | find cost model for the script type
 getmdl
   :: Script crypto
   -> PParams
   -> CostMod
-getmdl (PlutusScriptV1 s) pp
-  = findWithDefault defaultModel plcV1 (_costmdls pp)
+getmdl (PlutusScriptV1 _) pp
+  = findWithDefault defaultModel (Language plcV1) cms
+    where
+      (CostModels cms) = (_costmdls pp)
+getmdl (MultiSigScript _) _ = defaultModel
 
+-- | get the redeemer corresponding to the given current item
+-- it should return just one datum - the type is a set for totality
 findRdmr
   :: Tx crypto
-  ->
-findRdmr tx ci
+  -> CurItem crypto
+  -> Set Datum
+findRdmr tx ci = Set.fromList [ dat |
+  (p , dat) <- Map.toList rds , elem p (getPtr ci (_body tx)) ]
+  where
+    Rdmrs rds = _rdmrs $ _txwits tx
 
-findRdmr∈GoguenTx→CurItem→PData
-get empty set or redeemer corresponding to index
-findRdmrtx it={r|
-(certTag,indexofit(txcertstxb))7→r∈txrdmrstxw
-∨(wdrlTag,indexofit(txwdrlstxb))7→r∈txrdmrstxw
-∨(forgeTag,indexofit(forgetxb))7→r∈txrdmrstxw
-∨(inputTag,indexofit(txinputstxb))7→r∈txrdmrstxw}
-wheretxb=txbodytxtxw=txwitstx
+
+--(Set Datum -> a -> Set Datum) -> empty -> rds -> Set Datum
+-- | make the redeemer pointer
+getPtr
+  :: CurItem crypto
+  -> TxBody crypto
+  -> [RdmrPtr]
+getPtr (TI r) txb
+  = [ RdmrPtr InputTag idx |
+    (ins, idx) <- zip (toList $ _inputs txb) [0..], ins == r ]
+getPtr (SH r) txb
+  = [ RdmrPtr ForgeTag idx |
+    ((vl, _), idx) <- zip (Map.toList $ v) [0..], vl == r ]
+  where
+    Value v = _forge txb
+getPtr (DC r) txb
+  = [ RdmrPtr CertTag idx |
+    (cs, idx) <- zip (toList $ _certs txb) [0..], cs == r ]
+getPtr (WD r) txb
+  = [ RdmrPtr WdrlTag idx |
+    ((wl, _), idx) <- zip (Map.toList $ w) [0..], wl == r ]
+  where
+    Wdrl w = _wdrls txb
+
 
 -- | Computes the set of script hashes required to unlock the transcation inputs
 -- and the withdrawals.
@@ -302,5 +330,5 @@ txinsScript txInps (UTxO u) =
 
 
 -- | TODO : make validation data to pass to Plutus validator
-validationData :: UTxO crypto -> Tx crypto -> CurItem crypto -> Data
-validationData _ _ _ = Data 1
+validationData :: UTxO crypto -> Tx crypto -> CurItem crypto -> Datum
+validationData _ _ _ = Datum 1

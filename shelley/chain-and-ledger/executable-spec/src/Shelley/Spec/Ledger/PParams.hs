@@ -45,7 +45,7 @@ import           Data.Set (Set)
 import           Data.Map.Strict (Map, insert, empty, findWithDefault)
 
 import           Cardano.Binary (FromCBOR (..), ToCBOR (..), decodeWord, encodeListLen,
-                     encodeMapLen, encodeWord, enforceSize)
+                     encodeMapLen, encodeWord, enforceSize, decodeListLen, matchSize)
 import           Cardano.Prelude (NoUnexpectedThunks (..), mapMaybe)
 import           Shelley.Spec.Ledger.BaseTypes (FixedPoint, Nonce (NeutralNonce), StrictMaybe (..),
                      UnitInterval, fpPrecision, interval0, intervalValue, invalidKey,

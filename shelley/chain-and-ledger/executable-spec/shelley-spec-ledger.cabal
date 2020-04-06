@@ -39,8 +39,6 @@ library
                      Shelley.Spec.Ledger.OCert
                      Shelley.Spec.Ledger.Tx
                      Shelley.Spec.Ledger.TxData
-                     Shelley.Spec.Ledger.ShelleyTxData
-                     Shelley.Spec.Ledger.ShelleyTx
                      Shelley.Spec.Ledger.Validation
                      Shelley.Spec.Ledger.Scripts
                      Shelley.Spec.Ledger.CostModel
@@ -68,7 +66,6 @@ library
                      Shelley.Spec.Ledger.STS.Updn
                      Shelley.Spec.Ledger.STS.Utxo
                      Shelley.Spec.Ledger.STS.Utxow
-
                      Shelley.Spec.Ledger.Crypto
 
                      Shelley.Spec.Ledger.API

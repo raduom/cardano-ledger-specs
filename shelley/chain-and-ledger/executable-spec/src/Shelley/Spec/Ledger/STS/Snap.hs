@@ -12,11 +12,11 @@ module Shelley.Spec.Ledger.STS.Snap
   )
 where
 
-import           Cardano.Ledger.Shelley.Crypto
 import           Cardano.Prelude (NoUnexpectedThunks (..))
 import           Control.Monad.Trans.Reader (asks)
 import           Control.State.Transition
 import qualified Data.Map.Strict as Map
+import           Shelley.Spec.Ledger.Crypto
 import           GHC.Generics (Generic)
 import           Shelley.Spec.Ledger.BaseTypes
 import           Shelley.Spec.Ledger.Coin

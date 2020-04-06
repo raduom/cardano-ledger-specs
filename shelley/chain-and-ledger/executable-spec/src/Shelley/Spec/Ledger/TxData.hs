@@ -42,7 +42,7 @@ import           Shelley.Spec.Ledger.Coin (Coin (..))
 import           Shelley.Spec.Ledger.Keys (AnyKeyHash, GenKeyHash, Hash, KeyHash, pattern KeyHash,
                      Sig, VKey, VerKeyVRF, hashAnyKey)
 import           Shelley.Spec.Ledger.MetaData (MetaDataHash)
-import           Shelley.Spec.Ledger.PParams (Update)
+import           Shelley.Spec.Ledger.PParams (Update, PPHash(..))
 import           Shelley.Spec.Ledger.Slot (EpochNo (..), SlotNo (..))
 
 import           Shelley.Spec.Ledger.Serialization (CBORGroup (..), CborSeq (..),
@@ -51,7 +51,6 @@ import           Shelley.Spec.Ledger.Serialization (CBORGroup (..), CborSeq (..)
 
 import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Value
-import           Shelley.Spec.Ledger.PParams
 import           Shelley.Spec.Ledger.CostModel
 
 -- |The delegation of one stake key to another.
@@ -133,7 +132,7 @@ data Addr crypto
 
 instance NoUnexpectedThunks (Addr crypto)
 
-type Ix  = Natural
+type Ix  =  Natural
 
 -- | Pointer to a slot, transaction index and index in certificate list.
 data Ptr
@@ -249,7 +248,7 @@ instance NoUnexpectedThunks (UTxOOutP crypto)
 
 -- | current item - things that might need validation
 data CurItem crypto
-  = SH (ScriptHash crypto) | TI (TxIn crypto) | WD (Wdrl crypto) | DC (DCert crypto)
+  = SH (ScriptHash crypto) | TI (TxIn crypto) | WD (RewardAcnt crypto) | DC (DCert crypto)
   deriving (Show, Eq, Generic)
 
 instance NoUnexpectedThunks (CurItem crypto)

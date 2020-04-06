@@ -16,14 +16,11 @@ import           Shelley.Spec.Ledger.Serialization (decodeList, encodeFoldable)
 import           Cardano.Crypto.Hash (hashWithSerialiser)
 import           Cardano.Prelude (Generic, NoUnexpectedThunks (..))
 import qualified Data.List as List (concat, concatMap, permutations)
-import           Cardano.Prelude (Generic, NoUnexpectedThunks(..))
-import           Cardano.Ledger.Shelley.Crypto (Crypto(..), HASH)
 
 import           Data.Word (Word8)
 import           Shelley.Spec.Ledger.BaseTypes (invalidKey)
 import           Shelley.Spec.Ledger.Crypto (Crypto (..), HASH)
 import           Shelley.Spec.Ledger.Keys (AnyKeyHash, pattern AnyKeyHash, Hash)
-import           Shelley.Spec.Ledger.Serialization (decodeList, encodeFoldable)
 
 
 import           Shelley.Spec.Ledger.CostModel
@@ -110,12 +107,6 @@ instance NoUnexpectedThunks (Script crypto)
 deriving instance Crypto crypto => ToCBOR (ScriptHash crypto)
 deriving instance Crypto crypto => FromCBOR (ScriptHash crypto)
 
-newtype DataHash crypto = DataHash (Hash (HASH crypto) Data)
-  deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord)
-
-
-deriving instance Crypto crypto => ToCBOR (DataHash crypto)
-deriving instance Crypto crypto => FromCBOR (DataHash crypto)
 
 -- | Count nodes and leaves of multi signature script
 countMSigNodes :: MultiSig crypto -> Int
@@ -127,16 +118,21 @@ countMSigNodes (RequireMOf _ msigs) = 1 + sum (map countMSigNodes msigs)
 newtype DatumHash crypto = DatumHash (Hash (HASH crypto) Datum)
   deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord)
 
+deriving instance Crypto crypto => ToCBOR (DatumHash crypto)
+deriving instance Crypto crypto => FromCBOR (DatumHash crypto)
+
+-- | default Datum
+defaultDatum :: Datum
+defaultDatum = Datum 0
+
 -- | Hashes datum objects
 hashDatum
   :: Crypto crypto
-  => Datum 
+  => Datum
   -> DatumHash crypto
 hashDatum dv =
   DatumHash $ hashWithSerialiser (\x -> toCBOR x) dv
 
-deriving instance Crypto crypto => ToCBOR (DatumHash crypto)
-deriving instance Crypto crypto => FromCBOR (DatumHash crypto)
 
 -- | Hashes native multi-signature script, appending the 'nativeMultiSigTag' in
 -- front and then calling the script CBOR function.
@@ -193,12 +189,20 @@ runPLCScript _ _ _ _ = (IsValidating Yes, ExUnits 0 0)
 
 -- CBOR
 
+-- TODO Script and Datum will need proper CBOR once theyre the real thing
 instance ToCBOR Datum where
   toCBOR (Datum dv) =
     toCBOR dv
 
 instance FromCBOR Datum where
   fromCBOR = Datum <$> fromCBOR
+
+instance ToCBOR ScriptPLC where
+  toCBOR (ScriptPLC dv) =
+    toCBOR dv
+
+instance FromCBOR ScriptPLC where
+  fromCBOR = ScriptPLC <$> fromCBOR
 
 instance (Crypto crypto) =>
   ToCBOR (MultiSig crypto) where

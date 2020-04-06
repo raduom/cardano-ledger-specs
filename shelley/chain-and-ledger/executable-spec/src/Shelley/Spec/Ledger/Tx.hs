@@ -43,7 +43,6 @@ module Shelley.Spec.Ledger.Tx
     -- witness data
   , WitVKey(..)
   , MultiSignatureScript
-  , ShelleyOrGoguenTx
   , validateScript
   , hashScript
   , txwitsScript
@@ -68,7 +67,6 @@ import           Cardano.Prelude (AllowThunksIn (..), LByteString, NoUnexpectedT
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Foldable (fold)
 import           Data.Map.Strict (Map)
-                     encodeListLen, encodeWord, encodeMapLen, decodeListLenOf)
 import           Cardano.Crypto.Hash (hashWithSerialiser)
 import           Shelley.Spec.Ledger.Crypto
 import           Cardano.Prelude (NoUnexpectedThunks (..))
@@ -84,8 +82,7 @@ import           Shelley.Spec.Ledger.Scripts
 import           Shelley.Spec.Ledger.Serialization (decodeList, decodeMapContents, decodeMaybe,
                      decodeRecordNamed, encodeFoldable)
 import           Shelley.Spec.Ledger.TxData (Credential (..), TxBody (..),
-                     TxId (..), TxIn (..), TxOut (..), WitVKey (..), TxWitness (..), certs, inputs,
-                     outputs, ttl, txUpdate, txfee, wdrls, witKeyHash)
+                     TxId (..), TxIn (..), TxOut (..), WitVKey (..), TxWitness (..), witKeyHash)
 
 -- |A fully formed transaction.
 data Tx crypto
