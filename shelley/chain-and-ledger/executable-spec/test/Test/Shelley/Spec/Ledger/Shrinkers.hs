@@ -10,7 +10,7 @@ import qualified Data.Sequence.Strict as StrictSeq
 import           Data.Set (Set)
 import qualified Data.Set as S
 import           Test.QuickCheck (shrinkIntegral, shrinkList)
-import           Cardano.Ledger.Shelley.Crypto
+import           Shelley.Spec.Ledger.Crypto
 
 import           Shelley.Spec.Ledger.Value
 import           Shelley.Spec.Ledger.Coin
