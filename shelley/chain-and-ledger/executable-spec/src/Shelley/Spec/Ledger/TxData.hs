@@ -167,7 +167,7 @@ data RdmrPtr = RdmrPtr
 instance NoUnexpectedThunks RdmrPtr
 
 -- | data structure of indexed redeemers
-data Rdmrs = Rdmrs (Map RdmrPtr Datum)
+data Rdmrs = Rdmrs (Map RdmrPtr Data)
   deriving (Show, Eq, Ord, Generic)
 
 instance NoUnexpectedThunks Rdmrs
@@ -236,11 +236,11 @@ data TxIn crypto
 instance NoUnexpectedThunks (TxIn crypto)
 
 -- |The output of a Tx.
-data TxOutP crypto = TxOutP (Addr crypto) (Value crypto) (DatumHash crypto)
+data TxOutP crypto = TxOutP (Addr crypto) (Value crypto) (DataHash crypto)
   deriving (Show, Eq, Generic, Ord)
 
 -- |A plutus output of a UTxO.
-data UTxOOutP crypto = UTxOOutP (Addr crypto) (CompactValue crypto) (DatumHash crypto)
+data UTxOOutP crypto = UTxOOutP (Addr crypto) (CompactValue crypto) (DataHash crypto)
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (TxOutP crypto)
@@ -351,7 +351,7 @@ data TxWitness crypto
   = TxWitness
       { _witnessVKeySet :: !(Set (WitVKey crypto))
       , _scripts        :: !(Set (Script crypto))
-      , _dats           :: !(Set Datum)
+      , _dats           :: !(Set Data)
       , _rdmrs          :: Rdmrs
       } deriving (Show, Eq, Generic)
 

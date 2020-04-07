@@ -59,7 +59,7 @@ import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), pattern
                      pattern Delegate, pattern Delegation, PoolCert (..), TxBody (..),
                      UTxOIn (..), UTxOOut (..), OutND (..), TxOutP (..), UTxOOutP (..), XOutND (..),
                      TxId (..), TxIn (..), TxOut (..), Wdrl (..), WitVKey (..),
-                     RdmrPtr(..), Rdmrs(..), CurItem (..), ScrTypes(..),
+                     RdmrPtr(..), Rdmrs(..), CurItem (..), ScrTypes(..), RewardAcnt(..),
                      getRwdCred, utxoref, getValue, getAddress, _scripts, _dats, _rdmrs)
 import           Shelley.Spec.Ledger.Slot (SlotNo (..))
 
@@ -245,9 +245,9 @@ indexedScripts tx
 indexedDatums
   :: Crypto crypto
   => Tx crypto
-  -> Map (DatumHash crypto) Datum
+  -> Map (DataHash crypto) Data
 indexedDatums tx
-  = foldl (\m d -> insert (hashDatum d) d m) empty (_dats $ _txwits tx)
+  = foldl (\m d -> insert (hashData d) d m) empty (_dats $ _txwits tx)
 
 -- | find cost model for the script type
 getmdl
@@ -261,18 +261,17 @@ getmdl (PlutusScriptV1 _) pp
 getmdl (MultiSigScript _) _ = defaultModel
 
 -- | get the redeemer corresponding to the given current item
--- it should return just one datum - the type is a set for totality
+-- it should return just one redeemer - the type is a set for totality
 findRdmr
   :: Tx crypto
   -> CurItem crypto
-  -> Set Datum
-findRdmr tx ci = Set.fromList [ dat |
+  -> [Data]
+findRdmr tx ci = [ dat |
   (p , dat) <- Map.toList rds , elem p (getPtr ci (_body tx)) ]
   where
     Rdmrs rds = _rdmrs $ _txwits tx
 
 
---(Set Datum -> a -> Set Datum) -> empty -> rds -> Set Datum
 -- | make the redeemer pointer
 getPtr
   :: CurItem crypto
@@ -295,6 +294,79 @@ getPtr (WD r) txb
   where
     Wdrl w = _wdrls txb
 
+-- | this map assembles all the data needed to validate Plutus script-locked certificates
+allCertScrts :: (Crypto crypto)
+  => UTxO crypto
+  -> Tx crypto
+  -> [(ScriptPLC, [Data])]
+allCertScrts utxo tx =
+  [ (s_plc, [r, valContext utxo tx (DC c)]) |
+    (cr, PlutusScriptV1 s_plc) <- Map.toList $ indexedScripts tx,
+    c@(DCertDeleg (DeRegKey (ScriptHashObj sh))) <- toList $ _certs $ _body tx,
+    r <- findRdmr tx (DC c),
+    cr == sh ]
+
+-- | this map assembles all the data needed to validate Plutus script-locked withdrawals
+allWDRLSScrts :: (Crypto crypto)
+  => UTxO crypto
+  -> Tx crypto
+  -> [(ScriptPLC, [Data])]
+allWDRLSScrts utxo tx =
+  [ (s_plc, [r, valContext utxo tx (WD wd)]) |
+    (wd@(RewardAcnt (ScriptHashObj ra)), _) <- Map.toList $ unWdrl $ _wdrls $ _body tx,
+    (cr, PlutusScriptV1 s_plc) <- Map.toList $ indexedScripts tx,
+    r <- findRdmr tx (WD wd),
+    cr == ra ]
+
+-- | this map assembles all the data needed to validate all forges
+forgedScrts :: (Crypto crypto)
+  => UTxO crypto
+  -> Tx crypto
+  -> [(ScriptPLC, [Data])]
+forgedScrts utxo tx =
+   [ (s_plc, [r, valContext utxo tx (SH cid)]) |
+    (cid, _) <- Map.toList $ val $ _forge $ _body tx,
+    (cr, PlutusScriptV1 s_plc) <- Map.toList $ indexedScripts tx,
+    r <- findRdmr tx (SH cid),
+    cr == cid ]
+
+
+-- | this map assembles all the data needed to validate Plutus script-locked outputs
+-- TODO does this work right with pointer addresses?
+allInsScrts :: (Crypto crypto)
+  => UTxO crypto
+  -> Tx crypto
+  -> [(ScriptPLC, [Data])]
+allInsScrts utxo tx =
+   [ (s_plc, [d, r, valContext utxo tx (TI txin)]) |
+    -- input from transaction
+    txin <- Set.toList $ _inputs $ _body tx,
+    -- a script hash and corresponding PLC script
+    (cr, PlutusScriptV1 s_plc) <- Map.toList $ indexedScripts tx,
+    -- redeemer associated with the tx input
+    r <- findRdmr tx (TI txin),
+    -- utxo entry
+    (utxoin, UTxOOutPT (UTxOOutP a _ udh) _) <- Map.toList mutx,
+    -- datum hash and cooresponding datum
+    (dh, d) <- Map.toList $ indexedDatums tx,
+    -- transaction input matches the utxo input
+    utxoref txin == utxoin,
+    -- utxo entry address script hash matches script hash from indexed script map
+    Just cr == getScriptHash a,
+    -- utxo entry datum hash matches datum hash from the indexed datum map
+    udh == dh ]
+      where
+        UTxO mutx  = utxo
+
+
+-- | returns all the Plutus scripts that must be run,
+-- matched with their corresponding inputs
+mkPLCLst :: (Crypto crypto)
+  => UTxO crypto
+  -> Tx crypto
+  -> [(ScriptPLC, [Data])]
+mkPLCLst utxo tx = (allCertScrts utxo tx) ++ (allWDRLSScrts utxo tx)
+  ++ (forgedScrts utxo tx) ++ (allInsScrts utxo tx)
 
 -- | Computes the set of script hashes required to unlock the transcation inputs
 -- and the withdrawals.
@@ -302,7 +374,7 @@ getPtr (WD r) txb
 scriptsNeeded
   :: Crypto crypto => UTxO crypto
   -> Tx crypto
-  -> Set (ScriptHash crypto)
+  -> Set (ScriptHash crypto) -- Map (CurItem crypto) (ScriptHash crypto)
 scriptsNeeded u tx =
   Set.fromList (Map.elems $ Map.mapMaybe (getScriptHash . getAddress) u'')
   `Set.union`
@@ -314,6 +386,7 @@ scriptsNeeded u tx =
   where withdrawals = unWdrl $ _wdrls $ _body tx
         UTxO u'' = txinsScript (txins $ _body tx) u <| u
         certificates = (toList . _certs . _body) tx
+  -- forge
 
 -- | Compute the subset of inputs of the set 'txInps' for which each input is
 -- locked by a script in the UTxO 'u'.
@@ -330,5 +403,5 @@ txinsScript txInps (UTxO u) =
 
 
 -- | TODO : make validation data to pass to Plutus validator
-validationData :: UTxO crypto -> Tx crypto -> CurItem crypto -> Datum
-validationData _ _ _ = Datum 1
+valContext :: UTxO crypto -> Tx crypto -> CurItem crypto -> Data
+valContext _ _ _ = Data 1

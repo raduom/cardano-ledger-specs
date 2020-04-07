@@ -115,23 +115,23 @@ countMSigNodes (RequireAllOf msigs) = 1 + sum (map countMSigNodes msigs)
 countMSigNodes (RequireAnyOf msigs) = 1 + sum (map countMSigNodes msigs)
 countMSigNodes (RequireMOf _ msigs) = 1 + sum (map countMSigNodes msigs)
 
-newtype DatumHash crypto = DatumHash (Hash (HASH crypto) Datum)
+newtype DataHash crypto = DataHash (Hash (HASH crypto) Data)
   deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord)
 
-deriving instance Crypto crypto => ToCBOR (DatumHash crypto)
-deriving instance Crypto crypto => FromCBOR (DatumHash crypto)
+deriving instance Crypto crypto => ToCBOR (DataHash crypto)
+deriving instance Crypto crypto => FromCBOR (DataHash crypto)
 
--- | default Datum
-defaultDatum :: Datum
-defaultDatum = Datum 0
+-- | default Data
+defaultData :: Data
+defaultData = Data 0
 
--- | Hashes datum objects
-hashDatum
+-- | Hashes data objects
+hashData
   :: Crypto crypto
-  => Datum
-  -> DatumHash crypto
-hashDatum dv =
-  DatumHash $ hashWithSerialiser (\x -> toCBOR x) dv
+  => Data
+  -> DataHash crypto
+hashData dv =
+  DataHash $ hashWithSerialiser (\x -> toCBOR x) dv
 
 
 -- | Hashes native multi-signature script, appending the 'nativeMultiSigTag' in
@@ -180,22 +180,22 @@ getKeyCombinations (RequireMOf m msigs) =
 
 -- | Use these from Plutus
 -- TODO make this Plutus type
-newtype Datum = Datum Integer
+newtype Data = Data Integer
   deriving (Show, Eq, Generic, NoUnexpectedThunks, Ord)
 
 -- | TODO temporary validator always returns true and same amount of resources
-runPLCScript :: CostMod -> ScriptPLC -> [Datum] -> ExUnits -> (IsValidating, ExUnits)
+runPLCScript :: CostMod -> ScriptPLC -> [Data] -> ExUnits -> (IsValidating, ExUnits)
 runPLCScript _ _ _ _ = (IsValidating Yes, ExUnits 0 0)
 
 -- CBOR
 
--- TODO Script and Datum will need proper CBOR once theyre the real thing
-instance ToCBOR Datum where
-  toCBOR (Datum dv) =
+-- TODO Script and Data will need proper CBOR once theyre the real thing
+instance ToCBOR Data where
+  toCBOR (Data dv) =
     toCBOR dv
 
-instance FromCBOR Datum where
-  fromCBOR = Datum <$> fromCBOR
+instance FromCBOR Data where
+  fromCBOR = Data <$> fromCBOR
 
 instance ToCBOR ScriptPLC where
   toCBOR (ScriptPLC dv) =
