@@ -12,7 +12,7 @@ import qualified Data.Maybe as Maybe (fromJust)
 import           Data.String (fromString)
 import qualified Shelley.Spec.Ledger.MetaData as MD
 
-import           Cardano.Binary (Decoder, FromCBOR (..), ToCBOR (..), decodeFullDecoder,
+import           Cardano.Binary (FromCBOR (..), ToCBOR (..), decodeFullDecoder,
                      serializeEncoding, toCBOR, DecoderError)
 import           Cardano.Crypto.DSIGN (DSIGNAlgorithm (encodeVerKeyDSIGN), encodeSignedDSIGN)
 import           Cardano.Crypto.Hash (ShortHash, getHash)

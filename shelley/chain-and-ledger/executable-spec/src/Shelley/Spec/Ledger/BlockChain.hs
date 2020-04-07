@@ -59,7 +59,7 @@ import           GHC.Generics (Generic)
 import           Numeric.Natural (Natural)
 import           Shelley.Spec.Ledger.MetaData (MetaData)
 
-import           Cardano.Binary (Decoder, FromCBOR (fromCBOR), ToCBOR (toCBOR),
+import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR),
                      TokenType (TypeNull), decodeListLen, decodeListLenOf, decodeNull,
                      encodeListLen, encodeNull, matchSize, peekTokenType, serialize',
                      serializeEncoding', encodePreEncoded)
@@ -307,8 +307,8 @@ pattern Block :: BHeader crypto -> TxSeq crypto -> Block crypto
 pattern Block h txns <- Block' h txns _
   where
   Block h txns =
-    let mkBytes h txns = serializeEncoding' $
-          encodeListLen (1 + listLen txns) <> toCBOR h <> toCBORGroup txns
+    let mkBytes h' txns' = serializeEncoding' $
+          encodeListLen (1 + listLen txns') <> toCBOR h' <> toCBORGroup txns'
     in Block' h txns (mkBytes h txns)
 
 {-# COMPLETE Block #-}
