@@ -30,6 +30,9 @@ module Shelley.Spec.Ledger.Serialization
   , withAnnotationSlice'
   , FromCBORAnnotated (..)
   , decodeAnnotated
+  , withAnnotationSlice
+  , fromCBOREmptyAnnotation
+  , decodeWrapped
   )
 where
 
@@ -49,7 +52,6 @@ import           Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 
 import qualified Data.ByteString.Lazy as BSL
-import           Data.Typeable
 import Codec.CBOR.Read (ByteOffset)
 import Cardano.Binary (decodeFullDecoder, decodeWithByteSpan)
 

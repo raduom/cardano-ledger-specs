@@ -295,11 +295,7 @@ instance Crypto crypto
            }
 
 data Block crypto
-  = Block'
-  { blockHeader :: (BHeader crypto)
-  , blockTxSeq :: (TxSeq crypto)
-  , blockBytes :: Crypto crypto => ByteString
-  }
+  = Block' (BHeader crypto) (TxSeq crypto) (Crypto crypto => ByteString)
 
 instance Crypto crypto => Show (Block crypto) where
   show (Block h txns) = "Block (" <> show h <> ") (" <> show txns <> ")"
@@ -333,7 +329,7 @@ constructMetaData n md = fmap (`Map.lookup` md) (Seq.fromList [0 .. n-1])
 instance Crypto crypto
   => ToCBOR (Block crypto)
  where
-  toCBOR block = encodePreEncoded $ blockBytes block
+  toCBOR (Block' _ _ blockBytes) = encodePreEncoded $ blockBytes
 
 blockDecoder :: Crypto crypto => Bool -> forall s. AnnotatedDecoder s (Block crypto)
 blockDecoder lax = withAnnotationSlice' $ do
