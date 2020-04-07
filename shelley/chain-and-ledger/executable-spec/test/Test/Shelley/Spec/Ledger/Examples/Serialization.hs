@@ -6,12 +6,14 @@
 
 module Test.Shelley.Spec.Ledger.Examples.Serialization where
 
+import Cardano.Prelude (LByteString)
+
 import qualified Data.Maybe as Maybe (fromJust)
 import           Data.String (fromString)
 import qualified Shelley.Spec.Ledger.MetaData as MD
 
 import           Cardano.Binary (Decoder, FromCBOR (..), ToCBOR (..), decodeFullDecoder,
-                     serializeEncoding, toCBOR)
+                     serializeEncoding, toCBOR, DecoderError)
 import           Cardano.Crypto.DSIGN (DSIGNAlgorithm (encodeVerKeyDSIGN), encodeSignedDSIGN)
 import           Cardano.Crypto.Hash (ShortHash, getHash)
 import           Codec.CBOR.Encoding (Encoding (..), Tokens (..))
@@ -49,7 +51,7 @@ import           Shelley.Spec.Ledger.PParams (PParams' (PParams), PParamsUpdate,
                      _minfeeA, _minfeeB, _nOpt, _poolDecayRate, _poolDeposit, _poolMinRefund,
                      _protocolVersion, _rho, _tau)
 import           Shelley.Spec.Ledger.Rewards (emptyNonMyopic)
-import           Shelley.Spec.Ledger.Serialization (FromCBORGroup (..), ToCBORGroup (..))
+import           Shelley.Spec.Ledger.Serialization (FromCBORGroup (..), ToCBORGroup (..), decodeAnnotated, FromCBORAnnotated)
 import           Shelley.Spec.Ledger.Slot (BlockNo (..), EpochNo (..), SlotNo (..))
 import           Shelley.Spec.Ledger.Tx (Tx (..), hashScript)
 import           Shelley.Spec.Ledger.TxData (pattern AddrBase, pattern AddrEnterprise,
@@ -64,6 +66,7 @@ import           Shelley.Spec.Ledger.OCert (KESPeriod (..), pattern OCert)
 import           Shelley.Spec.Ledger.Scripts (pattern RequireSignature, pattern ScriptHash)
 import           Shelley.Spec.Ledger.UTxO (makeWitnessVKey)
 
+
 import           Test.Cardano.Crypto.VRF.Fake (WithResult (..))
 import           Test.Shelley.Spec.Ledger.ConcreteCryptoTypes (Addr, BHBody, CoreKeyPair,
                      GenKeyHash, HashHeader, KeyHash, KeyPair, MultiSig, PoolDistr, RewardUpdate,
@@ -77,23 +80,28 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 
-roundTrip :: (Show a, Eq a) => (a -> Encoding) -> (forall s. Decoder s a) -> String -> a -> Assertion
-roundTrip encode decode name x =
-  case (decodeFullDecoder (fromString name) decode . serializeEncoding . encode) x of
+roundTrip :: (Show a, Eq a)
+   => (a -> Encoding)
+   -> (LByteString -> Either DecoderError a)
+   -> a
+   -> Assertion
+roundTrip encode decode x =
+  case (decode . serializeEncoding . encode) x of
     Left e -> assertFailure $ "could not decode serialization of " ++ show x ++ ", " ++ show e
     Right y -> y @?= x
+
 
 checkEncoding
   :: (Show a, Eq a)
     => (a -> Encoding)
-    -> (forall s. Decoder s a)
+    -> (LByteString -> Either DecoderError a)
     -> String
     -> a
     -> ToTokens
     -> TestTree
 checkEncoding encode decode name x t = testCase testName $
   assertEqual testName (fromEncoding $ tokens t) (fromEncoding $ encode x)
-    >> roundTrip encode decode (name ++ "_rt") x
+    >> roundTrip encode decode x
   where
    testName = "prop_serialize_" <> name
    tokens :: ToTokens -> Encoding
@@ -111,7 +119,18 @@ checkEncodingCBOR
   -> a
   -> ToTokens
   -> TestTree
-checkEncodingCBOR = checkEncoding toCBOR fromCBOR
+checkEncodingCBOR name x t =
+  let d = decodeFullDecoder (fromString name) fromCBOR
+  in checkEncoding toCBOR d name x t
+
+checkEncodingCBORAnnotated
+  :: (FromCBORAnnotated a, ToCBOR a, Show a, Eq a)
+  => String
+  -> a
+  -> ToTokens
+  -> TestTree
+checkEncodingCBORAnnotated name x t = checkEncoding toCBOR decodeAnnotated name x t
+
 
 checkEncodingCBORCBORGroup
   :: (FromCBORGroup a, ToCBORGroup a, Show a, Eq a)
@@ -119,7 +138,9 @@ checkEncodingCBORCBORGroup
   -> a
   -> ToTokens
   -> TestTree
-checkEncodingCBORCBORGroup = checkEncoding toCBORGroup fromCBORGroup
+checkEncodingCBORCBORGroup name x t =
+  let d = decodeFullDecoder (fromString name) fromCBORGroup
+  in checkEncoding toCBORGroup d name x t
 
 
 getRawKeyHash :: KeyHash -> ByteString
@@ -899,7 +920,7 @@ serializationTests = testGroup "Serialization Tests"
         bh = BHeader testBHB sig
         txns = TxSeq mempty
     in
-    checkEncodingCBOR "empty_block"
+    checkEncodingCBORAnnotated "empty_block"
     (Block bh txns)
     ( (T $ TkListLen 4)
         <> S bh
@@ -930,7 +951,7 @@ serializationTests = testGroup "Serialization Tests"
         tx5 = Tx txb5 ws ss (Just tx5MD)
         txns = TxSeq $ Seq.fromList [tx1, tx2, tx3, tx4, tx5]
     in
-    checkEncodingCBOR "rich_block"
+    checkEncodingCBORAnnotated "rich_block"
     (Block bh txns)
     ( (T $ TkListLen 4)
         -- header
