@@ -48,7 +48,7 @@ except for the following changes and additions:
   Plutus scripts) inside it validate.
   This value is added by the block creator when
   constructing a block, and is checked as part of running scripts.
-  $\Yes$ for when it is for when all scripts will validate,
+  $\Yes$ for when when all scripts will validate,
   $\Nope$ is for when one of them does not.
 
   \item $\Data$ refers to the type defined in Plutus libraries, but is
@@ -72,23 +72,20 @@ except for the following changes and additions:
   to the fee pot.
 
   Note that in the extended UTxO model, it is possible for a transaction
-  to either be processed full, or do nothing but pay fees for script
+  to either be processed in full, or do nothing but pay fees for script
   validation (in the case of script validation failure, see Section
   \ref{sec:utxo} for details). All inputs can be marked as for-fees in
   the name of privacy concerns (if a user so chooses).
 
-  \item $\HasDV$: This is a tag used to indicate whether the transaction carrying
-  the output the tag is attached to also contains the full datum object corresponding
-  to the data hash in the output (this tag only applies to Plutus script outputs)
-
   \item $\UTxOIn$ is the type of the keys in the UTxO finite map. In Goguen, it is
   the same as the type as the UTxO keys in Shelley, but we have changed the name
-  to make the destinction between a transaction input type and UTxO keys.
+  to make the distinction between a transaction input type and UTxO keys.
   These two types are the same in Shelley, but distinct in Goguen.
 
   \item $\TxIn$ is a transaction input. It includes the reference to the UTxO entry it is spending
   (the UTxO output reference part) and the $\IsFee$ tag, which indicates if this input should
-  be used to pay script execution fees. Only VK-spending inputs can be used to
+  be used to pay script execution fees. Only VK-spending inputs and native-script (MSig)
+  spending inputs can be used to
   pay fees.
 
   \item $\TxOutND$: A transaction output with no datum hash
@@ -96,6 +93,21 @@ except for the following changes and additions:
 
   \item $\TxOutP$: A transaction output type for Plutus
   script outputs (which include datum hash).
+
+  \item $\HasDV$:
+  This is a tag attached to a transaction output if it is locked by a Plutus
+  script. That is, the output contains an address, a value, and necessarily a
+  hash of a datum.
+  This tag indicates whether the transaction carrying the output
+  contains, in its set of datum objects, the full datum corresponding
+  to the hash of the datum in the output.
+
+  Note that it is up to the user
+  to decide whether the transaction should have the full datum. The purpose of
+  including it is strictly to communicate it to the user who will be spending
+  the output in the future, and will require the full datum to validate
+  the Plutus script locking the output. However, this tag must be applied
+  correctly, otherwise the transaction will not validate.
 
   \item $\UTxOOut$ is the type of UTxO entry that gets created when a transaction
   output is processed. Note that like in the case of the type of transaction inputs,
@@ -172,11 +184,6 @@ except for the following changes and additions:
       & \Yes \uniondistinct \Nope
 %      & \text {tag for inputs used to pay script fees}
       \\
-      \var{hdv}
-      & \HasDV
-      & \Yes \uniondistinct \Nope
-%      & \text {tag for outputs that come with datums}
-      \\
       \var{uin}
       & \UTxOIn
       & \TxId \times \Ix
@@ -197,9 +204,14 @@ except for the following changes and additions:
       & \type{TxOutND} \times \DataHash
 %      & \text{script address output}
       \\
+      \var{hdv}
+      & \HasDV
+      & \Yes \uniondistinct \Nope
+      %      & \text {tag for outputs that come with datums}
+      \\
       \var{uout}
       & \UTxOOut
-      & \TxOutND \uniondistinct (\TxOutP \times \Slot)
+      & (\TxOutND \uniondistinct \TxOutP) \times \Slot
 %      & \text{transaction outputs}
       \\
       \var{txotx}
@@ -252,7 +264,8 @@ in a transaction that is needed for witnessing (script and VK), including
 \begin{itemize}
   \item VK signatures, as before
   \item a set of scripts (this includes scripts of all languages, and for all
-  purposes - forgin, outputs, certificates, and withdrawals)
+  validation purposes - forging tokens, spending outputs, verifying certificates, and
+  verifying withdrawals)
   \item a set of terms of type data, which contains all required datum objects
   \item an structure indexed by $\RdmrPtr$, with $\Data$ values, which includes all
   required redeemers

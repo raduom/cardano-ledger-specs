@@ -430,8 +430,8 @@ it is done by rules in the transition systems in the following order
 
 \begin{itemize}
   \item[(UTXOW)] : Verifies all the necessary witnessing info is present, including
-  VK witnesses, scripts, and all the script input data (it also performs
-  key witness checks and runs multisig scripts), applies state changes
+  VK witnesses, scripts, and all the script input data. It also performs
+  key witness checks and runs multisig scripts. It then applies state changes
   computed by the UTXO transition
   \item[(UTXO)] : Verifies a transaction satisfies all the accounting requirements
   (including the general accounting property, correct fee payment, etc.),
