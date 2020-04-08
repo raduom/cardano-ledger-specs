@@ -46,6 +46,7 @@ module Shelley.Spec.Ledger.BlockChain
   )
 where
 
+import Cardano.Prelude (LByteString)
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
@@ -82,6 +83,7 @@ import           Shelley.Spec.Ledger.PParams (ActiveSlotCoeff, ProtVer (..), act
                      activeSlotVal)
 import           Shelley.Spec.Ledger.Serialization (CBORGroup (..), CborSeq (..),
                      FromCBORGroup (..), ToCBORGroup (..), mapFromCBOR)
+                     
 import           Shelley.Spec.Ledger.Slot (BlockNo (..), SlotNo (..))
 import           Shelley.Spec.Ledger.Tx (Tx (..), cborWitsToTx, txToCBORWits)
 import           Shelley.Spec.NonIntegral (CompareResult (..), taylorExpCmp)

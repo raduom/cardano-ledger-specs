@@ -7,6 +7,8 @@
 
 module Test.Shelley.Spec.Ledger.Examples.Serialization where
 
+import Cardano.Prelude (LByteString)
+
 import qualified Data.Maybe as Maybe (fromJust)
 import           Data.String (fromString)
 import qualified Shelley.Spec.Ledger.MetaData as MD
@@ -67,6 +69,7 @@ import           Shelley.Spec.Ledger.OCert (KESPeriod (..), pattern OCert)
 import           Shelley.Spec.Ledger.Scripts (pattern RequireSignature, pattern ScriptHash)
 import           Shelley.Spec.Ledger.UTxO (makeWitnessVKey)
 
+
 import           Test.Cardano.Crypto.VRF.Fake (WithResult (..))
 import           Test.Shelley.Spec.Ledger.ConcreteCryptoTypes (Addr, BHBody, CoreKeyPair,
                      GenKeyHash, HashHeader, KeyHash, KeyPair, MultiSig, PoolDistr, RewardUpdate,
@@ -89,6 +92,7 @@ roundTrip encode decode x =
   case (decode . serializeEncoding . encode) x of
     Left e -> assertFailure $ "could not decode serialization of " ++ show x ++ ", " ++ show e
     Right y -> y @?= x
+
 
 checkEncoding
   :: (Show a, Eq a)

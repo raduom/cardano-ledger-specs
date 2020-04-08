@@ -5,6 +5,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
 
 module Shelley.Spec.Ledger.Serialization
   ( ToCBORGroup (..)
