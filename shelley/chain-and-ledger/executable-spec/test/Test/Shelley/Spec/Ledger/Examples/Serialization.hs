@@ -18,7 +18,6 @@ import           Cardano.Binary (FromCBOR (..), ToCBOR (..), decodeFullDecoder,
                      decodeAnnotator)
 import           Cardano.Crypto.DSIGN (DSIGNAlgorithm (encodeVerKeyDSIGN), encodeSignedDSIGN)
 import           Cardano.Crypto.Hash (ShortHash, getHash)
-import           Cardano.Prelude (LByteString)
 import           Codec.CBOR.Encoding (Encoding (..), Tokens (..))
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS (pack)
@@ -914,7 +913,7 @@ serializationTests = testGroup "Serialization Tests"
     -- checkEncodingCBOR "block_header"
   , let sig = Maybe.fromJust $ signKES (fst testKESKeys) testBHB 0
     in
-    checkEncodingCBOR "block_header"
+    checkEncodingCBORAnnotated "block_header"
     (BHeader testBHB sig)
     ( (T $ TkListLen 16)
         <> G testBHB
