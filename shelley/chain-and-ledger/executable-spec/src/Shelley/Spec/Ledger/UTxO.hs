@@ -37,6 +37,7 @@ module Shelley.Spec.Ledger.UTxO
   ) where
 
 import           Cardano.Binary (FromCBOR (..), ToCBOR (..))
+import           Cardano.Crypto.Hash (hashWithSerialiser)
 import           Cardano.Prelude (NoUnexpectedThunks (..))
 import           Data.Foldable (toList)
 import           Data.Map.Strict (Map)
@@ -49,7 +50,7 @@ import           Byron.Spec.Ledger.Core (Relation (..))
 import           Shelley.Spec.Ledger.Coin (Coin (..))
 import           Shelley.Spec.Ledger.Crypto
 import           Shelley.Spec.Ledger.Keys (AnyKeyHash, KeyDiscriminator (..), KeyPair, Signable,
-                     hash, sKey, sign, vKey, verify)
+                     sKey, sign, vKey, verify)
 import           Shelley.Spec.Ledger.PParams (PParams, Update)
 import           Shelley.Spec.Ledger.Tx (Tx (..))
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), pattern DeRegKey,
@@ -102,7 +103,7 @@ txid
   :: Crypto crypto
   => TxBody crypto
   -> TxId crypto
-txid = TxId . hash
+txid = TxId . hashWithSerialiser toCBOR
 
 -- |Compute the UTxO inputs of a transaction.
 txins
@@ -189,7 +190,7 @@ totalDeposits pc (StakePools stpools) cs = foldl f (Coin 0) cs'
     notRegisteredPool _ = True
     cs' = filter notRegisteredPool cs
 
-txup :: Tx crypto -> Maybe (Update crypto)
+txup :: Crypto crypto => Tx crypto -> Maybe (Update crypto)
 txup (Tx txbody _ _ _) = _txUpdate txbody
 
 -- | Extract script hash from value address with script.
@@ -218,7 +219,7 @@ scriptCred (ScriptHashObj hs) = Just hs
 -- | Computes the set of script hashes required to unlock the transcation inputs
 -- and the withdrawals.
 scriptsNeeded
-  :: UTxO crypto
+  :: Crypto crypto => UTxO crypto
   -> Tx crypto
   -> Set (ScriptHash crypto)
 scriptsNeeded u tx =

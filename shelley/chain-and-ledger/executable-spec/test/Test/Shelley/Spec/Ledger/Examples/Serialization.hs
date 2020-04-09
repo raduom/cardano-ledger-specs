@@ -804,7 +804,7 @@ serializationTests = testGroup "Serialization Tests"
         w = makeWitnessVKey txb testKey1
         md = Nothing :: Maybe MD.MetaData
     in
-    checkEncodingCBOR "tx_min"
+    checkEncodingCBORAnnotated "tx_min"
     ( Tx txb (Set.singleton w) Map.empty md )
     ( T (TkListLen 3)
       <> S txb
@@ -829,7 +829,7 @@ serializationTests = testGroup "Serialization Tests"
         s = Map.singleton (hashScript testScript) testScript
         md = Just $ MD.MetaData $ Map.singleton 17 (MD.I 42)
     in
-    checkEncodingCBOR "tx_full"
+    checkEncodingCBORAnnotated "tx_full"
     ( Tx txb (Set.singleton w) s md )
     ( T (TkListLen 3)
       <> S txb
