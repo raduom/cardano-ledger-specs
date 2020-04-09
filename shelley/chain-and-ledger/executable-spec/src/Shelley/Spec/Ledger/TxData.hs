@@ -28,7 +28,7 @@ import qualified Data.Map.Strict as Map
 import           Data.Ord (comparing)
 import           Data.Sequence.Strict (StrictSeq)
 import qualified Data.Sequence.Strict as StrictSeq
-import           Data.Set (Set)
+import           Data.Set (Set, filter)
 import qualified Data.Set as Set
 import           Data.Typeable (Typeable)
 import           Data.Word (Word8)
@@ -202,6 +202,10 @@ data UTxOIn crypto
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (UTxOIn crypto)
+
+-- | get Tx inputs marked as for-fees
+txinputsvf :: Set (TxIn crypto) -> Set (TxIn crypto)
+txinputsvf ins = Set.filter (\(TxIn _ _ isf) -> isf == IsFee Yes) ins
 
 -- | get UTxOIn reference from Tx input
 utxoref :: TxIn crypto -> UTxOIn crypto

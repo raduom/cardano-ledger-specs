@@ -20,6 +20,12 @@ data ValidationError =
   | RetirementCertExpired SlotNo SlotNo
   -- | The transaction fee is too small
   | FeeTooSmall Coin Coin
+  -- | The transaction fee is too small
+  | PlutusOutputsPayingFees
+  -- | The transaction fee is too small
+  | NonAdaFee 
+  -- | The transaction fee is too small
+  | ForFeeInputsTooSmall Coin Coin
   -- | Value is not conserved
   | ValueNotConserved ValueBSType ValueBSType
   -- | Unknown reward account

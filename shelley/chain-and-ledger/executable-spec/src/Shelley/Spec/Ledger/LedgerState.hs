@@ -83,7 +83,7 @@ import           Cardano.Crypto.Hash (byteCount)
 import           Cardano.Prelude (NoUnexpectedThunks (..))
 import           Control.Monad.Trans.Reader (ReaderT (..), asks)
 import           Data.Foldable (toList)
-import           Data.Map.Strict (Map)
+import           Data.Map.Strict (Map, singleton)
 import qualified Data.Map.Strict as Map
 import           Data.Proxy (Proxy (..))
 import qualified Data.Sequence.Strict as StrictSeq
@@ -107,6 +107,7 @@ import           Shelley.Spec.Ledger.Tx (Tx (..), extractGenKeyHash, extractKeyH
 import           Shelley.Spec.Ledger.TxData (Addr (..), Credential (..), DelegCert (..), Ix, TxWitness(..),
                      MIRCert (..), PoolCert (..), PoolMetaData (..), PoolParams (..), Ptr (..), UTxOIn(..),
                      RewardAcnt (..), TxBody (..), TxId (..), TxOut (..), Url (..),
+                     UTxOOut (..), UTxOOutP(..), utxoref, txinputsvf,
                      Wdrl (..), getRwdCred, witKeyHash, getAddress)
 import           Shelley.Spec.Ledger.UTxO (UTxO (..), balance, totalDeposits, txinLookup, txins,
                      txouts, txup, verifyWitVKey, mkUTxOout)
@@ -682,14 +683,30 @@ minfee pp tx = (Coin $ fromIntegral (_minfeeA pp) * txsize tx + fromIntegral (_m
   + scriptFee (toInteger $ size $ _scripts $ _txwits tx) (_prices pp) (_exunits $ _body tx)
 
 -- |Determine if the fee is large enough
-validFee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Validity
-validFee pc tx =
-  if needed <= given
-    then Valid
-    else Invalid [FeeTooSmall needed given]
-      where
-        needed = minfee pc tx
-        given  = (_txfee . _body) tx
+validFee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto -> UTxO crypto -> Validity
+validFee pc tx utxo =
+  if not $ null errlst
+    then Invalid errlst
+    else Valid
+    where
+      needed = minfee pc tx
+      given  = (_txfee . _body) tx
+      UTxO feeouts = (Set.map utxoref (txinputsvf $ _inputs $ _body $ tx)) ◁ utxo
+      -- enough to cover min fee
+      fts = needed <= given
+      forfees = getAdaAmount $ balance (UTxO feeouts)
+      -- no for-fee inputs correspond to Plutus locked outputs
+      popi = [ (inp, ot) | (inp , ot@(UTxOOutPT (UTxOOutP _ _ _) _)) <- Map.toList feeouts ]
+      -- for-fee outputs contain only Ada
+      naf = (balance (UTxO feeouts) == (coinToValue $ getAdaAmount $ balance (UTxO feeouts)))
+      -- make sure the fee inputs are enough to cover "given"
+      ffits = given <= forfees
+      errlst = [ err | (err, bl) <- [(FeeTooSmall needed given, fts),
+                      (PlutusOutputsPayingFees, not $ null popi),
+                      (NonAdaFee, naf),
+                      (ForFeeInputsTooSmall forfees given, ffits)],
+                      bl == True]
+
 
 -- |Compute the lovelace which are created by the transaction
 produced
@@ -893,7 +910,7 @@ validRuleUTXO accs stakePools stakeKeys pc slot tx u =
                           validInputs txb u
                        <> current txb slot
                        <> validNoReplay txb
-                       <> validFee pc tx
+                       <> validFee pc tx (_utxo u)
                        <> preserveBalance slot stakePools stakeKeys pc txb u
                        <> correctWithdrawals accs (unWdrl $ _wdrls txb)
   where txb = _body tx
