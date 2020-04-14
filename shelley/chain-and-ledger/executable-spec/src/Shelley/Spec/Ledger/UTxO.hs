@@ -35,6 +35,8 @@ module Shelley.Spec.Ledger.UTxO
   , scriptsNeeded
   , txinsScript
   , mkUTxOout
+  , mkPLCLst
+  , getmdl
   ) where
 
 import           Cardano.Binary (FromCBOR (..), ToCBOR (..))

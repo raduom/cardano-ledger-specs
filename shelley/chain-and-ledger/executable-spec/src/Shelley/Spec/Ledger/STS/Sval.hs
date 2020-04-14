@@ -11,188 +11,113 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Shelley.Spec.Ledger.STS.Sval
-  ( UTXO
-  , UtxoEnv (..)
+  ( SVAL
+  , SVALEnv (..)
+  , SVALState (..)
   , PredicateFailure(..)
   )
 where
 
-import           Byron.Spec.Ledger.Core (dom, range, (∪), (⊆), (⋪))
+
 import           Cardano.Binary (FromCBOR (..), ToCBOR (..), decodeListLen, decodeWord,
                      encodeListLen, matchSize)
 import           Cardano.Prelude (NoUnexpectedThunks (..))
 import           Control.State.Transition
-import           Data.Foldable (toList)
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import           Data.Typeable (Typeable)
 import           Data.Word (Word8)
 import           GHC.Generics (Generic)
 import           Shelley.Spec.Ledger.BaseTypes
-import           Shelley.Spec.Ledger.Coin
 import           Shelley.Spec.Ledger.Crypto
-import           Shelley.Spec.Ledger.Delegation.Certificates
-import           Shelley.Spec.Ledger.Keys
-import           Shelley.Spec.Ledger.LedgerState (UTxOState (..), consumed, decayedTx, keyRefunds,
-                     minfee, produced, txsize)
 import           Shelley.Spec.Ledger.PParams
-import           Shelley.Spec.Ledger.Slot
-import           Shelley.Spec.Ledger.STS.Ppup
+
 import           Shelley.Spec.Ledger.Tx
-import           Shelley.Spec.Ledger.TxData (getValue)
 import           Shelley.Spec.Ledger.UTxO
-import           Shelley.Spec.Ledger.Value
 
-import           Shelley.Spec.Ledger.Value
+import           Shelley.Spec.Ledger.CostModel
+import           Shelley.Spec.Ledger.Scripts
 
-data UTXO crypto
+data SVAL crypto
 
-data UtxoEnv crypto
-  = UtxoEnv
-      SlotNo
+data SVALState = SVALState ExUnits
+
+data SVALEnv crypto
+  = SVALEnv
       PParams
-      (StakeCreds crypto)
-      (StakePools crypto)
-      (GenDelegs crypto)
+      (Tx crypto)
       deriving(Show)
 
 instance
   Crypto crypto
-  => STS (UTXO crypto)
+  => STS (SVAL crypto)
  where
-  type State (UTXO crypto) = UTxOState crypto
-  type Signal (UTXO crypto) = Tx crypto
-  type Environment (UTXO crypto) = UtxoEnv crypto
-  type BaseM (UTXO crypto) = ShelleyBase
-  data PredicateFailure (UTXO crypto)
-    = BadInputsUTxO
-    | ExpiredUTxO SlotNo SlotNo
-    | MaxTxSizeUTxO Integer Integer
-    | InputSetEmptyUTxO
-    | FeeTooSmallUTxO Coin Coin
-    | ValueNotConservedUTxO ValueBSType ValueBSType
-    | NegativeOutputsUTxO
-    | ForgingAda
-    | UpdateFailure (PredicateFailure (PPUP crypto))
+  type State (SVAL crypto) = SVALState
+  type Signal (SVAL crypto) = [(ScriptPLC, [Data])]
+  type Environment (SVAL crypto) = SVALEnv crypto
+  type BaseM (SVAL crypto) = ShelleyBase
+  data PredicateFailure (SVAL crypto)
+    = BadTag
     deriving (Eq, Show, Generic)
-  transitionRules = [utxoInductive]
-  initialRules = [initialLedgerState]
+  transitionRules = [svalInductive]
+  initialRules = [initialValState]
 
-instance NoUnexpectedThunks (PredicateFailure (UTXO crypto))
+instance NoUnexpectedThunks (PredicateFailure (SVAL crypto))
 
 instance
   (Typeable crypto, Crypto crypto)
-  => ToCBOR (PredicateFailure (UTXO crypto))
+  => ToCBOR (PredicateFailure (SVAL crypto))
  where
    toCBOR = \case
-     BadInputsUTxO               -> encodeListLen 1 <> toCBOR (0 :: Word8)
-     (ExpiredUTxO a b)           -> encodeListLen 3 <> toCBOR (1 :: Word8)
-                                      <> toCBOR a <> toCBOR b
-     (MaxTxSizeUTxO a b)         -> encodeListLen 3 <> toCBOR (2 :: Word8)
-                                      <> toCBOR a <> toCBOR b
-     InputSetEmptyUTxO           -> encodeListLen 1 <> toCBOR (3 :: Word8)
-     (FeeTooSmallUTxO a b)       -> encodeListLen 3 <> toCBOR (4 :: Word8)
-                                      <> toCBOR a <> toCBOR b
-     (ValueNotConservedUTxO a b) -> encodeListLen 3 <> toCBOR (5 :: Word8)
-                                      <> toCBOR a <> toCBOR b
-     NegativeOutputsUTxO         -> encodeListLen 1 <> toCBOR (6 :: Word8)
-     ForgingAda                  -> encodeListLen 1 <> toCBOR (7 :: Word8)
-     (UpdateFailure a)           -> encodeListLen 2 <> toCBOR (8 :: Word8)
-                                      <> toCBOR a
+     BadTag               -> encodeListLen 1 <> toCBOR (0 :: Word8)
 
 instance
   (Crypto crypto)
-  => FromCBOR (PredicateFailure (UTXO crypto))
+  => FromCBOR (PredicateFailure (SVAL crypto))
  where
   fromCBOR = do
     n <- decodeListLen
     decodeWord >>= \case
-      0 -> matchSize "BadInputsUTxO" 1 n >> pure BadInputsUTxO
-      1 -> do
-        matchSize "ExpiredUTxO" 3 n
-        a <- fromCBOR
-        b <- fromCBOR
-        pure $ ExpiredUTxO a b
-      2 -> do
-        matchSize "MaxTxSizeUTxO" 3 n
-        a <- fromCBOR
-        b <- fromCBOR
-        pure $ MaxTxSizeUTxO a b
-      3 -> matchSize "InputSetEmptyUTxO" 1 n >> pure InputSetEmptyUTxO
-      4 -> do
-        matchSize "FeeTooSmallUTxO" 3 n
-        a <- fromCBOR
-        b <- fromCBOR
-        pure $ FeeTooSmallUTxO a b
-      5 -> do
-        matchSize "ValueNotConservedUTxO" 3 n
-        a <- fromCBOR
-        b <- fromCBOR
-        pure $ ValueNotConservedUTxO a b
-      6 -> matchSize "NegativeOutputsUTxO" 1 n >> pure NegativeOutputsUTxO
-      7 -> matchSize "ForgingAda" 1 n >> pure ForgingAda
-      8 -> do
-        matchSize "UpdateFailure" 2 n
-        a <- fromCBOR
-        pure $ UpdateFailure a
+      0 -> matchSize "BadTag" 1 n >> pure BadTag
       k -> invalidKey k
 
-initialLedgerState :: InitialRule (UTXO crypto)
-initialLedgerState = do
+initialValState :: InitialRule (SVAL crypto)
+initialValState = do
   IRC _ <- judgmentContext
-  pure $ UTxOState (UTxO Map.empty) (Coin 0) (Coin 0) emptyPPPUpdates
+  pure $ SVALState defaultUnits
 
-utxoInductive
+svalInductive
   :: forall crypto
    . Crypto crypto
-  => TransitionRule (UTXO crypto)
-utxoInductive = do
-  TRC (UtxoEnv slot pp stakeCreds stakepools genDelegs, u, tx) <- judgmentContext
-  let UTxOState utxo deposits' fees ppup = u
-  let txb = _body tx
+  => TransitionRule (SVAL crypto)
+svalInductive = do
+  TRC (SVALEnv pp tx, svs, sLst) <- judgmentContext
+  let SVALState remExU = svs
 
-  _ttl txb >= slot ?! ExpiredUTxO (_ttl txb) slot
+  case (null sLst) of
+    -- Scripts-Val rule for when all scripts have been run and validated
+    True -> do
+      (_valtag tx == IsValidating Nope) ?! BadTag
+      (remExU < defaultUnits) ?! BadTag
+      pure svs
 
-  txins txb /= Set.empty ?! InputSetEmptyUTxO
+    -- when there are scripts left to validate
+    False -> do
+      -- run the script and get validation result and remaining exunits
+      let (sd, datas) = head sLst
+      let ls = tail sLst
+      let (isVal, remExU') = runPLCScript (getmdl (PlutusScriptV1 sd) pp) sd datas remExU
 
-  let minFee = minfee pp tx
-      txFee  = _txfee txb
-  minFee <= txFee ?! FeeTooSmallUTxO minFee txFee
+      -- validation tag is Nope - there should be a validation failure /
+      -- run out of ExUnits / scripts left to validate
+      -- Scripts-Stop rule in formal spec
+      case (_valtag tx) of
+        IsValidating Nope -> do
+          (isVal == IsValidating Yes) ?! BadTag
+          (remExU' > defaultUnits) ?! BadTag
+          pure svs
 
-  txins txb ⊆ dom utxo ?! BadInputsUTxO
-
-  let consumed_ = consumed pp utxo stakeCreds txb
-      produced_ = produced slot pp stakepools txb
-  consumed_ == produced_ ?! ValueNotConservedUTxO (toValBST consumed_) (toValBST produced_)
-
-  -- process Protocol Parameter Update Proposals
-  ppup' <- trans @(PPUP crypto) $ TRC (PPUPEnv slot pp genDelegs, ppup, txup tx)
-
-  let outputValues = [getValue utxoout | utxoout <- Set.toList (range (txouts slot txb))]
-  all (zeroV <=) outputValues ?! NegativeOutputsUTxO
-
-  let (Value vls) = _forge txb
-  let cids = Map.keys vls
-  all (adaID /=) cids  ?! ForgingAda
-
-
-  let maxTxSize_ = fromIntegral (_maxTxSize pp)
-      txSize_ = txsize tx
-  txSize_ <= maxTxSize_ ?! MaxTxSizeUTxO txSize_ maxTxSize_
-
-  let refunded = keyRefunds pp stakeCreds txb
-  decayed <- liftSTS $ decayedTx pp stakeCreds txb
-  let txCerts = toList $ _certs txb
-  let depositChange = totalDeposits pp stakepools txCerts - (refunded + decayed)
-
-  pure UTxOState
-        { _utxo      = (txins txb ⋪ utxo) ∪ txouts slot txb
-        , _deposited = deposits' + depositChange
-        , _fees      = fees + (_txfee txb) + decayed
-        , _ppups     = ppup'
-        }
-
-instance Crypto crypto
-  => Embed (PPUP crypto) (UTXO crypto)
- where
-  wrapFailed = UpdateFailure
+      -- validation tag is Yes - script should validate, exunits budget remains
+      -- Scripts-Ind rule in formal spec
+        IsValidating Yes -> do
+          (isVal == IsValidating Nope) ?! BadTag
+          (remExU' <= defaultUnits) ?! BadTag
+          trans @(SVAL crypto) $ TRC (SVALEnv pp tx, SVALState remExU', ls)
