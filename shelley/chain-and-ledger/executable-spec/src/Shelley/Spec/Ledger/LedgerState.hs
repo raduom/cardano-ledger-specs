@@ -858,7 +858,7 @@ witsVKeyNeeded utxo' tx@(Tx txbody _ _ _) _genDelegs =
     insertHK txin hkeys =
       case txinLookup txin utxo' of
         Just ot -> Set.insert pay hkeys where
-          (AddrBase (KeyHashObj pay) _) = getAddress ot
+          (Addr (KeyHashObj pay) _) = getAddress ot
         _                               -> hkeys
 
     wdrlAuthors =
@@ -1165,15 +1165,15 @@ overlaySchedule e gkeys pp = do
         activitySchedule = cycle (True:replicate numInactivePerActive False)
         unassignedSched = zip activitySchedule genesisSlots
 
-        active =
+        actives =
           Map.fromList $ fmap
             (\(gk,(_,s))->(s, ActiveSlot gk))
             (zip (cycle (Set.toList gkeys)) (filter fst unassignedSched))
-        inactive =
+        inactives =
           Map.fromList $ fmap
             (\x -> (snd x, NonActiveSlot))
             (filter (not . fst) unassignedSched)
-      pure $ Map.union active inactive
+      pure $ Map.union actives inactives
 
 -- | Update new epoch state
 updateNES
