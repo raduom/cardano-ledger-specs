@@ -44,6 +44,7 @@ import           Shelley.Spec.Ledger.UTxO
 import           Shelley.Spec.Ledger.Value
 
 import           Shelley.Spec.Ledger.Scripts
+import           Shelley.Spec.Ledger.CostModel
 
 data UTXOS crypto
 
@@ -121,10 +122,11 @@ scriptsYesNo = do
 
   -- run Plutus scripts
   -- TODO is this the right order of things for two-phase validation?
-  _ <- trans @(SVAL crypto) $ TRC (SVALEnv pp tx, SVALState (_exunits txb), sLst)
+  let exu SNothing   = defaultUnits
+      exu (SJust ex) = ex
+  _ <- trans @(SVAL crypto) $ TRC (SVALEnv pp tx, SVALState (exu $ _exunits txb), sLst)
 
-
-  case _valtag tx of
+  case (_valtag tx) of
     -- Scripts-No rule for when one of the Plutus scripts does not validate
     IsValidating Nope -> do
       -- get fees inputs and outputs

@@ -16,6 +16,8 @@ data ValidationError =
     BadInputs
   -- | The transaction has expired
   | Expired SlotNo SlotNo
+  -- | The transaction is not yet active
+  | Inactive SlotNo SlotNo
   -- | Pool Retirement Certificate expired
   | RetirementCertExpired SlotNo SlotNo
   -- | The transaction fee is too small
@@ -23,7 +25,7 @@ data ValidationError =
   -- | The transaction fee is too small
   | PlutusOutputsPayingFees
   -- | The transaction fee is too small
-  | NonAdaFee 
+  | NonAdaFee
   -- | The transaction fee is too small
   | ForFeeInputsTooSmall Coin Coin
   -- | Value is not conserved

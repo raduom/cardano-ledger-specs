@@ -160,8 +160,8 @@ instance NoUnexpectedThunks ScrTypes
 
 -- | pointer to the thing the redeemer is for
 data RdmrPtr = RdmrPtr
-  {   scrType :: ScrTypes
-    , rix      :: Ix }
+  {   scrType :: !ScrTypes
+    , rix      :: !Ix }
   deriving (Show, Eq, Ord, Generic)
 
 instance NoUnexpectedThunks RdmrPtr
@@ -198,7 +198,7 @@ deriving instance Crypto crypto => FromCBOR (TxId crypto)
 
 -- |The input of a UTxO.
 data UTxOIn crypto
-  = UTxOIn (TxId crypto) Natural -- TODO use our own Natural type
+  = UTxOIn !(TxId crypto) !Natural -- TODO use our own Natural type
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (UTxOIn crypto)
@@ -234,17 +234,17 @@ getCoin (UTxOOutPT (UTxOOutP _ v _) _) =
 
 -- |The input of a Tx.
 data TxIn crypto
-  = TxIn !(TxId crypto) !Natural IsFee -- TODO use our own Natural type
+  = TxIn !(TxId crypto) !Natural !IsFee -- TODO use our own Natural type
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (TxIn crypto)
 
 -- |The output of a Tx.
-data TxOutP crypto = TxOutP (Addr crypto) (Value crypto) (DataHash crypto)
+data TxOutP crypto = TxOutP !(Addr crypto) !(Value crypto) !(DataHash crypto)
   deriving (Show, Eq, Generic, Ord)
 
 -- |A plutus output of a UTxO.
-data UTxOOutP crypto = UTxOOutP (Addr crypto) (CompactValue crypto) (DataHash crypto)
+data UTxOOutP crypto = UTxOOutP !(Addr crypto) !(CompactValue crypto) !(DataHash crypto)
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (TxOutP crypto)
@@ -252,25 +252,25 @@ instance NoUnexpectedThunks (UTxOOutP crypto)
 
 -- | current item - things that might need validation
 data CurItem crypto
-  = SH (ScriptHash crypto) | TI (TxIn crypto) | WD (RewardAcnt crypto) | DC (DCert crypto)
+  = SH !(ScriptHash crypto) | TI !(TxIn crypto) | WD !(RewardAcnt crypto) | DC !(DCert crypto)
   deriving (Show, Eq, Generic)
 
 instance NoUnexpectedThunks (CurItem crypto)
 
 -- |The output of a UTxO.
 data UTxOOut crypto
-  = UTxOOutND (XOutND crypto) SlotNo | UTxOOutPT (UTxOOutP crypto) SlotNo
+  = UTxOOutND !(XOutND crypto) !SlotNo | UTxOOutPT !(UTxOOutP crypto) !SlotNo
   deriving (Show, Eq, Generic, Ord)
 
 
 -- |The output of a Tx  without data value.
 data OutND crypto
-  = OutND (Addr crypto) (Value crypto)
+  = OutND !(Addr crypto) !(Value crypto)
   deriving (Show, Eq, Generic, Ord)
 
 -- |The output of a UTxO without data value.
 data XOutND crypto
-  = XOutND (Addr crypto) (CompactValue crypto)
+  = XOutND !(Addr crypto) !(CompactValue crypto)
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (OutND crypto)
@@ -278,7 +278,7 @@ instance NoUnexpectedThunks (XOutND crypto)
 
 -- |The output of a Tx.
 data TxOut crypto
-  = TxOutND !(OutND crypto) | TxOutPT !(TxOutP crypto) HasDV
+  = TxOutND !(OutND crypto) | TxOutPT !(TxOutP crypto) !HasDV
   deriving (Show, Eq, Generic, Ord)
 
 instance NoUnexpectedThunks (TxOut crypto)
@@ -336,9 +336,9 @@ data TxBody crypto
       { _inputs   :: !(Set (TxIn crypto))
       , _outputs  :: !(StrictSeq (TxOut crypto))
       , _certs    :: !(StrictSeq (DCert crypto))
-      , _forge    :: !Value crypto
-      , _exunits  :: !ExUnits --TODO Maybe type
-      , _wdrls    :: !Wdrl crypto
+      , _forge    :: !(Value crypto)
+      , _exunits  :: !(StrictMaybe ExUnits)
+      , _wdrls    :: !(Wdrl crypto)
       , _txfee    :: !Coin
       , _fst      :: !SlotNo
       , _ttl      :: !SlotNo
@@ -356,7 +356,7 @@ data TxWitness crypto
       { _witnessVKeySet :: !(Set (WitVKey crypto))
       , _scripts        :: !(Set (Script crypto))
       , _dats           :: !(Set Data)
-      , _rdmrs          :: Rdmrs
+      , _rdmrs          :: !Rdmrs
       } deriving (Show, Eq, Generic)
 
 instance Crypto crypto => NoUnexpectedThunks (TxWitness crypto)
@@ -772,48 +772,6 @@ instance
     b <- fromCBOR
     pure $ WitVKey a b
 
---
--- data CBORWits crypto
---   = CBORWits
---       { _cborWitsVKeys   :: CborSeq (WitVKey crypto)
---       , _cborScripts :: CborSeq (Script crypto)
---       , _cborDats :: CborSeq Data
---       , _cborRdmrs :: CBORMap RdmrPtr Data
---       } deriving (Generic)
---
--- instance (Crypto crypto) =>
---   ToCBOR (CBORWits crypto) where
---   toCBOR ws =
---     let l = catMaybes $
---               [ encodeMapElement 0 $ _cborWitsVKeys ws
---               , encodeMapElement 1 $ _cborScripts ws
---               , encodeMapElement 2 $ _cborDats ws
---               , encodeMapElement 3 $ _cborRdmrs ws
---               ]
---         n = fromIntegral $ length l
---     in encodeMapLen n <> fold l
---     where
---       encodeMapElement ix x = if null x then Nothing else Just (encodeWord ix <> toCBOR x)
---
--- instance (Crypto crypto) =>
---   FromCBOR (CBORWits crypto) where
---   fromCBOR = do
---     mapParts <- decodeMapContents $
---       decodeWord >>= \case
---         0 -> fromCBOR >>= \x -> pure (\w -> w { _cborWitsVKeys  = x })
---         1 -> fromCBOR >>= \x -> pure (\w -> w { _cborScripts  = x })
---         2 -> fromCBOR >>= \x -> pure (\w -> w { _cborDats  = x })
---         3 -> fromCBOR >>= \x -> pure (\w -> w { _cborRdmrs  = x })
---         k -> invalidKey k
---     pure $ foldr ($) start mapParts
---     where
---       start = CBORWits
---          { _cborWitsVKeys = CborSeq Seq.empty
---          , _cborScripts   = CborSeq Seq.empty
---          , _cborDats      = CborSeq Seq.empty
---          , _cborRdmrs     = CBORMap Map.empty
---          }
---
 instance
   Crypto crypto
   => FromCBOR (TxWitness crypto)
@@ -848,9 +806,9 @@ instance
           , encodeMapElement 2 $ _txfee txbody
           , encodeMapElement 3 $ _fst txbody
           , encodeMapElement 4 $ _ttl txbody
-          , encodeMapElementUnless null 5 $ CborSeq $ StrictSeq.getSeq $_certs txbody
+          , encodeMapElementUnless null 5 $ CborSeq $ StrictSeq.getSeq $ _certs txbody
           , encodeMapElementUnless (null . val) 6 $ _forge txbody
-          , encodeMapElementUnless ((==) defaultUnits) 7 $ _exunits txbody -- TODO maybe type
+          , encodeMapElement 7 =<< strictMaybeToMaybe (_exunits txbody)
           , encodeMapElementUnless (null . unWdrl) 8 $ _wdrls txbody
           , encodeMapElement 9 =<< strictMaybeToMaybe (_txUpdate txbody)
           , encodeMapElement 10 =<< strictMaybeToMaybe (_ppHash txbody)
@@ -880,7 +838,7 @@ instance
          4 -> fromCBOR                      >>= \x -> pure (4, \t -> t { _ttl      = x })
          5 -> (unwrapCborStrictSeq <$> fromCBOR)  >>= \x -> pure (5, \t -> t { _certs    = x })
          6 -> fromCBOR                      >>= \x -> pure (6, \t -> t { _forge    = x })
-         7 -> fromCBOR                      >>= \x -> pure (7, \t -> t { _exunits  = x })
+         7 -> fromCBOR                      >>= \x -> pure (7, \t -> t { _exunits  = SJust x })
          8 -> fromCBOR                      >>= \x -> pure (8, \t -> t { _wdrls    = x })
          9 -> fromCBOR                      >>= \x -> pure (9, \t -> t { _txUpdate = SJust x })
          10 -> fromCBOR                     >>= \x -> pure (10, \t -> t { _ppHash   = SJust x })
@@ -908,7 +866,7 @@ instance
           , _ttl      = SlotNo 0
           , _certs    = StrictSeq.empty
           , _forge    = zeroV
-          , _exunits  = defaultUnits
+          , _exunits  = SNothing
           , _wdrls    = Wdrl Map.empty
           , _txUpdate = SNothing
           , _ppHash   = SNothing

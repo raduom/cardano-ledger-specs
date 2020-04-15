@@ -219,7 +219,9 @@ utxoInductive = do
   txSize_ <= maxTxSize_ ?! MaxTxSizeUTxO txSize_ maxTxSize_
 
   -- tx exceeds ExUnits limit per Tx
-  _exunits txb <= (_maxTxExUnits pp) ?! TooManyExUnits (_exunits txb) (_maxTxExUnits pp)
+  let exu SNothing   = defaultUnits
+      exu (SJust ex) = ex
+  (exu $ _exunits txb) <= (_maxTxExUnits pp) ?! TooManyExUnits (exu $ _exunits txb) (_maxTxExUnits pp)
 
   -- the UTXOS rule
   trans @(UTXOS crypto)

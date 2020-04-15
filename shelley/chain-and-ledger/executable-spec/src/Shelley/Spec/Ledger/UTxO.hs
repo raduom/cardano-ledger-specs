@@ -262,7 +262,8 @@ getmdl (MultiSigScript _) _ = defaultModel
 -- | get the redeemer corresponding to the given current item
 -- it should return just one redeemer - the type is a set for totality
 findRdmr
-  :: Tx crypto
+  :: Crypto crypto
+  => Tx crypto
   -> CurItem crypto
   -> [Data]
 findRdmr tx ci = [ dat |
@@ -373,7 +374,7 @@ mkPLCLst utxo tx = (allCertScrts utxo tx) ++ (allWDRLSScrts utxo tx)
 scriptsNeeded
   :: Crypto crypto => UTxO crypto
   -> Tx crypto
-  -> Set (ScriptHash crypto) -- Map (CurItem crypto) (ScriptHash crypto)
+  -> Set (ScriptHash crypto) -- TODO Map (CurItem crypto) (ScriptHash crypto)
 scriptsNeeded u tx =
   Set.fromList (Map.elems $ Map.mapMaybe (getScriptHash . getAddress) u'')
   `Set.union`

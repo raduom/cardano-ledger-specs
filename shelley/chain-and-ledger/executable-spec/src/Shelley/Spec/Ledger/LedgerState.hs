@@ -136,6 +136,8 @@ data LedgerValidation crypto
   = LedgerValidation [ValidationError] (LedgerState crypto)
   deriving (Show, Eq, Generic)
 
+-- TODO write checks for new LEDGER rules
+
 instance NoUnexpectedThunks (LedgerValidation crypto)
 
 type RewardAccounts crypto
@@ -502,7 +504,7 @@ genesisId =
    StrictSeq.Empty
    StrictSeq.Empty
    zeroV
-   defaultUnits
+   SNothing
    (Wdrl Map.empty)
    (Coin 0)
    (SlotNo 0)
@@ -544,6 +546,13 @@ current tx slot =
     then Invalid [Expired (_ttl tx) slot]
     else Valid
 
+-- | Determine if the transaction has expired
+active :: TxBody crypto-> SlotNo -> Validity
+active tx slot =
+    if _fst tx > slot
+    then Invalid [Inactive (_fst tx) slot]
+    else Valid
+
 -- | Determine if the input set of a transaction consumes at least one input,
 -- else it would be possible to do a replay attack using this transaction.
 validNoReplay :: TxBody crypto-> Validity
@@ -563,7 +572,7 @@ validInputs tx u =
     else Invalid [BadInputs]
 
 -- |Implementation of abstract transaction size
--- TODO make correct
+-- TODO make correct (maybe with MC costing?)
 txsize :: forall crypto . (Crypto crypto) => Tx crypto-> Integer
 txsize (Tx
           txbody
@@ -572,7 +581,7 @@ txsize (Tx
           _) =
   iSize + oSize + cSize + wSize + feeSize + ttlSize + uSize + mdhSize + witnessSize + mdSize
   where
-    TxBody ins outs cs ws _ _ up mdh = txbody
+    TxBody ins outs cs _ _ ws _ _ _ up _ _ mdh = txbody
     -- vkey signatures
     signatures = Set.size $ _witnessVKeySet wits
 
@@ -680,7 +689,10 @@ txsize (Tx
 -- |Minimum fee calculation
 minfee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Coin
 minfee pp tx = (Coin $ fromIntegral (_minfeeA pp) * txsize tx + fromIntegral (_minfeeB pp))
-  + scriptFee (toInteger $ size $ _scripts $ _txwits tx) (_prices pp) (_exunits $ _body tx)
+  + scriptFee (toInteger $ size $ _scripts $ _txwits tx) (_prices pp) (exu $ _exunits $ _body tx)
+    where
+      exu SNothing   = defaultUnits
+      exu (SJust ex) = ex
 
 -- |Determine if the fee is large enough
 validFee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto -> UTxO crypto -> Validity
@@ -830,7 +842,8 @@ correctWithdrawals accs withdrawals =
 -- given transaction. This set consists of the txin owners,
 -- certificate authors, and withdrawal reward accounts.
 witsVKeyNeeded
-  :: UTxO crypto
+  :: Crypto crypto
+  => UTxO crypto
   -> Tx crypto
   -> GenDelegs crypto
   -> Set (AnyKeyHash crypto)
@@ -896,6 +909,7 @@ enoughWits tx@(Tx _ wits _ _) d' u =
   where
     signers = Set.map witKeyHash (_witnessVKeySet wits)
 
+-- TODO add all needed checks
 validRuleUTXO
   :: (Crypto crypto)
   => RewardAccounts crypto
@@ -915,6 +929,7 @@ validRuleUTXO accs stakePools stakeKeys pc slot tx u =
                        <> correctWithdrawals accs (unWdrl $ _wdrls txb)
   where txb = _body tx
 
+-- TODO all all needed checks
 validRuleUTXOW
   :: ( Crypto crypto
      , Signable (DSIGN crypto) (TxBody crypto)
@@ -937,6 +952,7 @@ propWits (Just (Update (ProposedPPUpdates pup) _)) (GenDelegs _genDelegs) =
   Set.fromList $ Map.elems updateKeys
   where updateKeys = Map.keysSet pup ◁ _genDelegs
 
+-- TODO other rules valid (utxos and sval), both outcomes
 validTx
   :: ( Crypto crypto
      , Signable (DSIGN crypto) (TxBody crypto)
@@ -976,6 +992,7 @@ depositPoolChange ls pp tx = (currentPool + txDeposits) - txRefunds
     txRefunds = keyRefunds pp ((_stkCreds . _dstate . _delegationState) ls) tx
 
 -- |Apply a transaction body as a state transition function on the ledger state.
+-- TODO make the function that is fees-only
 applyTxBody
   :: (Crypto crypto)
   => SlotNo
