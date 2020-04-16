@@ -26,6 +26,8 @@ data ValidationError =
   | PlutusOutputsPayingFees
   -- | The transaction fee is too small
   | NonAdaFee
+  -- | The transaction is forging Ada
+  | ForgingAda
   -- | The transaction fee is too small
   | ForFeeInputsTooSmall Coin Coin
   -- | Value is not conserved
