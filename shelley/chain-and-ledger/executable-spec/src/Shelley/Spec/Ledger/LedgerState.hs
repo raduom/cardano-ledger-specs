@@ -500,8 +500,8 @@ genesisId =
    Set.empty
    StrictSeq.Empty
    StrictSeq.Empty
-   (Value Map.empty)
    (Wdrl Map.empty)
+   (Value Map.empty)
    (Coin 0)
    (SlotNo 0)
    SNothing
@@ -567,7 +567,7 @@ txsize (Tx
           md) =
   iSize + oSize + cSize + wSize + feeSize + ttlSize + uSize + mdhSize + witnessSize + mdSize
   where
-    TxBody ins outs cs ws _ _ up mdh = txbody
+    TxBody ins outs cs ws fg  _ _ up mdh = txbody
     -- vkey signatures
     signatures = Set.size vKeySigs
 
@@ -675,6 +675,13 @@ txsize (Tx
 -- |Minimum fee calculation
 minfee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Coin
 minfee pp tx = Coin $ fromIntegral (_minfeeA pp) * txsize tx + fromIntegral (_minfeeB pp)
+
+-- |Determine if Ada is being forged
+validForge :: forall crypto . (Crypto crypto) => Tx crypto-> Validity
+validForge tx =
+  if elem adaID (Map.keys $ val $ _forge $ _body tx)
+    then Valid
+    else Invalid [ForgingAda]
 
 -- |Determine if the fee is large enough
 validFee :: forall crypto . (Crypto crypto) => PParams -> Tx crypto-> Validity
@@ -821,7 +828,7 @@ witsVKeyNeeded utxo' tx@(Tx txbody _ _ _) _genDelegs =
     inputAuthors = undiscriminateKeyHash `Set.map` Set.foldr insertHK Set.empty (_inputs txbody)
     insertHK txin hkeys =
       case txinLookup txin utxo' of
-        Just (TxOut (Addr (KeyHashObj pay) _) _) -> Set.insert pay hkeys
+        Just (UTxOOut (Addr (KeyHashObj pay) _) _) -> Set.insert pay hkeys
         _                                        -> hkeys
 
     wdrlAuthors =
@@ -887,6 +894,7 @@ validRuleUTXO accs stakePools stakeKeys pc slot tx u =
                        <> current txb slot
                        <> validNoReplay txb
                        <> validFee pc tx
+                       <> validForge tx
                        <> preserveBalance stakePools stakeKeys pc txb u
                        <> correctWithdrawals accs (unWdrl $ _wdrls txb)
   where txb = _body tx
