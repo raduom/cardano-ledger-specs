@@ -129,6 +129,46 @@ data Addr crypto
   deriving (Show, Eq, Ord, Generic)
   deriving (ToCBOR, FromCBOR) via (CBORGroup (Addr crypto))
 
+putAddr :: Int -> Addr crypto -> Put
+putAddr netID (AddrBootstrap kh) = undefined -- defer to byron
+putAddr netId (Addr pc sr) =
+  let payCredBit = case pc of
+          ScriptHashObj _ -> 2^4
+          KeyHashObj _ -> 0
+   in case sr of
+        StakeRefBase sc -> do
+          let stakeCredBit = case sc of
+                      ScriptHashObj _ -> 2^5
+                      KeyHashObj _ -> 0
+              header = stakeCredBit .|. payCredBit .|. netId
+           putWord8 header
+           putCredential pc
+           putCredential sc
+        StakePtr (Ptr slot txIx certIx) -> do
+           let header = 2^6 .|. payCredBit .|. netId
+           putWord8 header
+           putCredential pc
+           putSlot slot
+           putVariableLengthInt txIx
+           putVariableLengthInt certIx
+        StakeNull -> do
+           let header = 2^6 .|. 2^5 .|. payCredBit .|. netId
+           putWord8 header
+           putCredential pc
+
+getAddr :: Get (Int, Addr crypto)
+getAddr =
+
+putCredential :: Credential crypto -> Put
+putCredential = undefined
+
+putSlot :: SlotNo -> Put
+putSlot = undefined
+
+putVariableLengthInt :: Integer -> Put
+putVariableLengthInt = undefined
+
+
 instance NoUnexpectedThunks (Addr crypto)
 
 type Ix  = Natural

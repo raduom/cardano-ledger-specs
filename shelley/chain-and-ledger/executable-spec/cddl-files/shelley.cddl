@@ -65,6 +65,21 @@ transaction_input = [ transaction_id : $hash32
 
 transaction_output = [address, amount : uint]
 
+-- bit 3: byron/shelley
+-- bit 2: base/other
+-- bit 1: pointer/enterprise [for base: stake cred is keyhash/scripthash]
+-- bit 0: payment cred is keyhash/scripthash
+; 0000: base address: keyhash28,keyhash28 -- 57 bytes -- 92 characters bech32
+; 0001: base address: scripthash28,keyhash28 -- 57 bytes -- 92 characters bech32
+; 0010: base address: keyhash28,scripthash28 -- 57 bytes -- 92 characters bech32
+; 0011: base address: scripthash28,scripthash28 -- 57 bytes -- 92 characters bech32
+; 0100: pointer address: keyhash28, 3 variable length uint -- 35 bytes -- 56 characters bech32
+; 0101: pointer address: scripthash28, 3 variable length uint  -- 35 bytes -- 56 characters bech32
+; 0110: enterprise address: keyhash28 -- 29 bytes -- 47 bech32
+; 0111: enterprise address: scripthash28 -- 29 bytes -- 47 bech32
+; 1000: byron address ; 10000010 -- 0x82  130 dec
+; 1001 - 1111: new formats
+
 address =
  (  0, addr_keyhash, addr_keyhash ; base address
  // 1, addr_keyhash, scripthash   ; base address
