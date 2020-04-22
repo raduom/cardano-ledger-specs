@@ -21,7 +21,10 @@ import           Cardano.Prelude (NoUnexpectedThunks (..), Word64, catMaybes)
 import           Control.Monad (unless)
 import           Shelley.Spec.Ledger.Crypto
 
+import           Data.Binary
+import           Data.Bits (testBit, (.|.))
 import           Data.ByteString (ByteString)
+import           Data.Coerce (coerce)
 import           Data.Foldable (fold)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -129,11 +132,11 @@ data Addr crypto
   deriving (Show, Eq, Ord, Generic)
   deriving (ToCBOR, FromCBOR) via (CBORGroup (Addr crypto))
 
-putAddr :: Int -> Addr crypto -> Put
+putAddr :: Word8 -> Addr crypto -> Put
 putAddr netID (AddrBootstrap kh) = undefined -- defer to byron
 putAddr netId (Addr pc sr) =
   let payCredBit = case pc of
-          ScriptHashObj _ -> 2^4
+          ScriptHashObj _ -> 2^4 :: Word8
           KeyHashObj _ -> 0
    in case sr of
         StakeRefBase sc -> do
@@ -141,23 +144,49 @@ putAddr netId (Addr pc sr) =
                       ScriptHashObj _ -> 2^5
                       KeyHashObj _ -> 0
               header = stakeCredBit .|. payCredBit .|. netId
-           putWord8 header
-           putCredential pc
-           putCredential sc
-        StakePtr (Ptr slot txIx certIx) -> do
+          putWord8 header
+          putCredential pc
+          putCredential sc
+        StakeRefPtr (Ptr slot txIx certIx) -> do
            let header = 2^6 .|. payCredBit .|. netId
            putWord8 header
            putCredential pc
            putSlot slot
-           putVariableLengthInt txIx
-           putVariableLengthInt certIx
-        StakeNull -> do
+           putVariableLengthNat txIx
+           putVariableLengthNat certIx
+        StakeRefNull -> do
            let header = 2^6 .|. 2^5 .|. payCredBit .|. netId
            putWord8 header
            putCredential pc
 
-getAddr :: Get (Int, Addr crypto)
-getAddr =
+getAddr :: Get (Maybe Word8, Addr crypto)
+getAddr = do
+  netId <- get
+  header <- get
+  if testBit header 3
+    then do
+      ba <- getByron netId header
+      pure (Nothing, ba)
+    else do
+      case (testBit header 2, testBit header 1, testBit header 0) of
+        (False, False, False) -> do
+          pc <- getKeyHash
+          sc <- getKeyHash
+          pure (Just netId, Addr (KeyHashObj pc) (StakeRefBase $ KeyHashObj sc))
+        (False, False, True) -> do
+          pc <- getScriptHash
+          sc <- getKeyHash
+          pure (Just netId, Addr (ScriptHashObj pc) (StakeRefBase $ KeyHashObj sc))
+        (False, True, False) -> do
+          pc <- getKeyHash
+          sc <- getScriptHash
+          pure (Just netId, Addr (ScriptHashObj pc) (StakeRefBase $ KeyHashObj sc))
+        (False, True, True) -> do
+          pc <- getScriptHash
+          sc <- getScriptHash
+          pure (Just netId, Addr (ScriptHashObj pc) (StakeRefBase $ KeyHashObj sc))
+      
+
 
 putCredential :: Credential crypto -> Put
 putCredential = undefined
@@ -165,8 +194,17 @@ putCredential = undefined
 putSlot :: SlotNo -> Put
 putSlot = undefined
 
-putVariableLengthInt :: Integer -> Put
-putVariableLengthInt = undefined
+putVariableLengthNat :: Natural -> Put
+putVariableLengthNat = undefined
+
+getKeyHash :: Get (KeyHash crypto)
+getKeyHash = undefined
+
+getScriptHash :: Get (ScriptHash crypto)
+getScriptHash = undefined
+
+getByron :: Word8 -> Word8 -> Get (Addr crypto)
+getByron netId header = undefined
 
 
 instance NoUnexpectedThunks (Addr crypto)
