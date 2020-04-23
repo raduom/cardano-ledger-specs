@@ -22,7 +22,8 @@ import           Control.Monad (unless)
 import           Shelley.Spec.Ledger.Crypto
 
 import           Data.Binary
-import           Data.Bits (testBit, (.|.))
+import           Data.Binary.Get
+import           Data.Bits (testBit, (.|.), setBit)
 import           Data.ByteString (ByteString)
 import           Data.Coerce (coerce)
 import           Data.Foldable (fold)
@@ -127,65 +128,66 @@ instance NoUnexpectedThunks (StakeReference crypto)
 
 -- |An address for UTxO.
 data Addr crypto
-  = Addr !(PaymentCredential crypto) !(StakeReference crypto)
-  | AddrBootstrap !(KeyHash crypto)
+  = Addr !Word8 !(PaymentCredential crypto) !(StakeReference crypto)
+  | AddrBootstrap !(KeyHash crypto) -- TODO: replace with bigger byron address
   deriving (Show, Eq, Ord, Generic)
-  deriving (ToCBOR, FromCBOR) via (CBORGroup (Addr crypto))
 
-putAddr :: Word8 -> Addr crypto -> Put
-putAddr netID (AddrBootstrap kh) = undefined -- defer to byron
-putAddr netId (Addr pc sr) =
+
+byron = 7
+notBaseAddr = 6
+isEnterpriseAddr = 5
+stakeCredIsScript = 5
+payCredIsScript = 4
+
+putAddr :: Addr crypto -> Put
+putAddr (AddrBootstrap kh) = undefined -- TODO: defer to byron
+putAddr (Addr netId pc sr) =
   let payCredBit = case pc of
-          ScriptHashObj _ -> 2^4 :: Word8
-          KeyHashObj _ -> 0
+          ScriptHashObj _ -> flip setBit payCredIsScript
+          KeyHashObj _ -> id
    in case sr of
         StakeRefBase sc -> do
           let stakeCredBit = case sc of
-                      ScriptHashObj _ -> 2^5
-                      KeyHashObj _ -> 0
-              header = stakeCredBit .|. payCredBit .|. netId
+                      ScriptHashObj _ -> flip setBit stakeCredIsScript
+                      KeyHashObj _ -> id
+              header = stakeCredBit . payCredBit $ netId
           putWord8 header
           putCredential pc
           putCredential sc
         StakeRefPtr (Ptr slot txIx certIx) -> do
-           let header = 2^6 .|. payCredBit .|. netId
+           let header = payCredBit $ netId `setBit` notBaseAddr
            putWord8 header
            putCredential pc
            putSlot slot
            putVariableLengthNat txIx
            putVariableLengthNat certIx
         StakeRefNull -> do
-           let header = 2^6 .|. 2^5 .|. payCredBit .|. netId
+           let header = payCredBit $ netId `setBit` isEnterpriseAddr `setBit` notBaseAddr
            putWord8 header
            putCredential pc
 
-getAddr :: Get (Maybe Word8, Addr crypto)
+getAddr :: Get (Addr crypto)
 getAddr = do
-  netId <- get
-  header <- get
-  if testBit header 3
-    then do
-      ba <- getByron netId header
-      pure (Nothing, ba)
+  header <- lookAhead getWord8
+  if testBit header byron
+    then getByron
     else do
-      case (testBit header 2, testBit header 1, testBit header 0) of
-        (False, False, False) -> do
-          pc <- getKeyHash
-          sc <- getKeyHash
-          pure (Just netId, Addr (KeyHashObj pc) (StakeRefBase $ KeyHashObj sc))
-        (False, False, True) -> do
-          pc <- getScriptHash
-          sc <- getKeyHash
-          pure (Just netId, Addr (ScriptHashObj pc) (StakeRefBase $ KeyHashObj sc))
-        (False, True, False) -> do
-          pc <- getKeyHash
-          sc <- getScriptHash
-          pure (Just netId, Addr (ScriptHashObj pc) (StakeRefBase $ KeyHashObj sc))
-        (False, True, True) -> do
-          pc <- getScriptHash
-          sc <- getScriptHash
-          pure (Just netId, Addr (ScriptHashObj pc) (StakeRefBase $ KeyHashObj sc))
-      
+      _ <- getWord8
+      let netId = header .&. 15 -- 0b00001111 is the mask for the network id
+      Addr netId <$> getPayCred header <*> getStakeCred header
+
+getPayCred :: Word8 -> Get PaymentCredential
+getPayCred header = case testBit payCredIsScript header of
+  True -> undefined
+  False -> undefined
+getStakeCred :: Word8 -> Get StakeReference
+getStakeCred header = case testBit notBase header of
+  True -> case testBit isEnterprise header of
+    True -> undefined
+    False -> undefined
+  False -> case testBit stakeCredIsScriptheader of
+    True -> undefined
+    False -> undefined
 
 
 putCredential :: Credential crypto -> Put
