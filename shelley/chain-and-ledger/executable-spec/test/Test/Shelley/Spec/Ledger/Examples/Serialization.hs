@@ -368,7 +368,7 @@ serializationTests = testGroup "Serialization Tests"
     checkEncodingCBOR "txout"
     (TxOut a (Coin 2))
     (T (TkListLen 3)
-      <> G a
+      <> S a
       <> S (Coin 2)
     )
   , case makeWitnessVKey testTxb testKey1 of

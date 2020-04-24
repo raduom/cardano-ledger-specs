@@ -16,17 +16,20 @@ module Shelley.Spec.Ledger.TxData
   where
 
 import           Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR), decodeListLen, decodeWord,
-                     encodeListLen, encodeMapLen, encodeWord, enforceSize, matchSize)
-import           Cardano.Prelude (NoUnexpectedThunks (..), Word64, catMaybes)
+                     encodeListLen, encodeMapLen, encodeWord, enforceSize, matchSize, DecoderError(..))
+import qualified Cardano.Crypto.Hash.Class as Hash
+import           Cardano.Prelude (NoUnexpectedThunks (..), Word64, catMaybes, cborError)
 import           Control.Monad (unless)
 import           Shelley.Spec.Ledger.Crypto
 
-import           Data.Binary
-import           Data.Binary.Get
-import           Data.Bits (testBit, (.|.), setBit)
+import qualified Data.Binary as B
+import           Data.Binary (Get, Put)
+import qualified Data.Binary.Get as B
+import qualified Data.Binary.Put as B
+import           Data.Bits (setBit, testBit, (.&.), (.|.), shiftR, shiftL)
 import           Data.ByteString (ByteString)
 import           Data.Coerce (coerce)
-import           Data.Foldable (fold)
+import           Data.Foldable (fold, foldl')
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import           Data.Ord (comparing)
@@ -34,6 +37,7 @@ import           Data.Sequence.Strict (StrictSeq)
 import qualified Data.Sequence.Strict as StrictSeq
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.String (fromString)
 import           Data.Typeable (Typeable)
 import           Data.Word (Word8)
 import           GHC.Generics (Generic)
@@ -43,14 +47,14 @@ import           Byron.Spec.Ledger.Core (Relation (..))
 import           Shelley.Spec.Ledger.BaseTypes (StrictMaybe (..), Text64, UnitInterval, invalidKey,
                      maybeToStrictMaybe, strictMaybeToMaybe)
 import           Shelley.Spec.Ledger.Coin (Coin (..))
-import           Shelley.Spec.Ledger.Keys (AnyKeyHash, GenKeyHash, Hash, KeyHash, pattern KeyHash,
+import           Shelley.Spec.Ledger.Keys (AnyKeyHash, GenKeyHash, Hash, KeyHash, pattern KeyHash,HashAlgorithm, 
                      Sig, VKey, VerKeyVRF, hashAnyKey)
 import           Shelley.Spec.Ledger.MetaData (MetaDataHash)
 import           Shelley.Spec.Ledger.PParams (Update)
 import           Shelley.Spec.Ledger.Slot (EpochNo (..), SlotNo (..))
 
 import           Shelley.Spec.Ledger.Serialization (CBORGroup (..), CborSeq (..),
-                     FromCBORGroup (..), ToCBORGroup (..), decodeMapContents, decodeNullMaybe,
+                     FromCBORGroup (..), ToCBORGroup (..), decodeMapContents, decodeNullMaybe, decodeRecordNamed,
                      decodeSet, encodeFoldable, encodeNullMaybe, mapFromCBOR, mapToCBOR,
                      unwrapCborStrictSeq)
 
@@ -128,85 +132,135 @@ instance NoUnexpectedThunks (StakeReference crypto)
 
 -- |An address for UTxO.
 data Addr crypto
-  = Addr !Word8 !(PaymentCredential crypto) !(StakeReference crypto)
+  = Addr !(PaymentCredential crypto) !(StakeReference crypto)
   | AddrBootstrap !(KeyHash crypto) -- TODO: replace with bigger byron address
   deriving (Show, Eq, Ord, Generic)
 
-
+byron :: Int
 byron = 7
+notBaseAddr :: Int
 notBaseAddr = 6
+isEnterpriseAddr :: Int
 isEnterpriseAddr = 5
+stakeCredIsScript :: Int
 stakeCredIsScript = 5
+payCredIsScript :: Int
 payCredIsScript = 4
 
-putAddr :: Addr crypto -> Put
+putAddr :: Crypto crypto => Addr crypto -> Put
 putAddr (AddrBootstrap kh) = undefined -- TODO: defer to byron
-putAddr (Addr netId pc sr) =
+putAddr (Addr pc sr) =
   let payCredBit = case pc of
           ScriptHashObj _ -> flip setBit payCredIsScript
           KeyHashObj _ -> id
+      netId = 0 -- TODO: real net id
    in case sr of
         StakeRefBase sc -> do
           let stakeCredBit = case sc of
                       ScriptHashObj _ -> flip setBit stakeCredIsScript
                       KeyHashObj _ -> id
               header = stakeCredBit . payCredBit $ netId
-          putWord8 header
+          B.putWord8 header
           putCredential pc
           putCredential sc
         StakeRefPtr (Ptr slot txIx certIx) -> do
-           let header = payCredBit $ netId `setBit` notBaseAddr
-           putWord8 header
-           putCredential pc
-           putSlot slot
-           putVariableLengthNat txIx
-           putVariableLengthNat certIx
+          let header = payCredBit $ netId `setBit` notBaseAddr
+          B.putWord8 header
+          putCredential pc
+          putSlot slot
+          putVariableLengthNat txIx
+          putVariableLengthNat certIx
         StakeRefNull -> do
-           let header = payCredBit $ netId `setBit` isEnterpriseAddr `setBit` notBaseAddr
-           putWord8 header
-           putCredential pc
+          let header = payCredBit $ netId `setBit` isEnterpriseAddr `setBit` notBaseAddr
+          B.putWord8 header
+          putCredential pc
 
-getAddr :: Get (Addr crypto)
+getAddr :: Crypto crypto => Get (Addr crypto)
 getAddr = do
-  header <- lookAhead getWord8
+  header <- B.lookAhead B.getWord8
   if testBit header byron
     then getByron
     else do
-      _ <- getWord8
-      let netId = header .&. 15 -- 0b00001111 is the mask for the network id
-      Addr netId <$> getPayCred header <*> getStakeCred header
+      _ <- B.getWord8
+      let netId = header .&. 0x0F -- 0b00001111 is the mask for the network id
+          -- TODO: validate netId
+      Addr <$> getPayCred header <*> getStakeReference header
 
-getPayCred :: Word8 -> Get PaymentCredential
-getPayCred header = case testBit payCredIsScript header of
-  True -> undefined
-  False -> undefined
-getStakeCred :: Word8 -> Get StakeReference
-getStakeCred header = case testBit notBase header of
-  True -> case testBit isEnterprise header of
-    True -> undefined
-    False -> undefined
-  False -> case testBit stakeCredIsScriptheader of
-    True -> undefined
-    False -> undefined
+getHash :: forall h a. HashAlgorithm h => Get (Hash h a)
+getHash = Hash.UnsafeHash <$> B.getByteString (fromIntegral $ Hash.byteCount ([] @h))
 
+putHash :: Hash h a -> Put
+putHash (Hash.UnsafeHash b) = B.put b
 
-putCredential :: Credential crypto -> Put
-putCredential = undefined
+getPayCred :: Crypto crypto => Word8 -> Get (PaymentCredential crypto)
+getPayCred header = case testBit header payCredIsScript of
+  True -> getScriptHash
+  False -> getKeyHash
+
+getScriptHash :: Crypto crypto => Get (Credential crypto)
+getScriptHash = ScriptHashObj . ScriptHash <$> getHash
+
+getKeyHash :: Crypto crypto => Get (Credential crypto)
+getKeyHash = KeyHashObj . KeyHash <$> getHash
+
+getStakeReference :: Crypto crypto => Word8 -> Get (StakeReference crypto)
+getStakeReference header = case testBit header notBaseAddr of
+  True -> case testBit header isEnterpriseAddr of
+    True -> pure StakeRefNull
+    False -> StakeRefPtr <$> getPtr
+  False -> case testBit header stakeCredIsScript of
+    True -> StakeRefBase <$> getScriptHash
+    False -> StakeRefBase <$> getKeyHash
+
+putCredential :: Crypto crypto => Credential crypto -> Put
+putCredential (ScriptHashObj (ScriptHash h)) = putHash h
+putCredential (KeyHashObj (KeyHash h)) = putHash h
 
 putSlot :: SlotNo -> Put
-putSlot = undefined
+putSlot (SlotNo n) = putVariableLengthNat . fromIntegral $ n
+
+getByron :: Get (Addr crypto)
+getByron = undefined
+
+getPtr :: Get Ptr
+getPtr = Ptr <$> (SlotNo . fromIntegral <$> getVariableLengthNat)
+             <*> getVariableLengthNat
+             <*> getVariableLengthNat
+
+newtype Word7 = Word7 Word8
+
+toWord7 :: Word8 -> Word7
+toWord7 x = Word7 (x .&. 0x7F)
+
+putWord7s :: [Word7] -> Put
+putWord7s [] = pure ()
+putWord7s [Word7 x] = B.putWord8 x
+putWord7s (Word7 x: xs) = B.putWord8 (x .|. 0x80) >> putWord7s xs
+
+getWord7s :: Get [Word7]
+getWord7s = do
+  next <- B.getWord8
+  case next .&. 0x80 of
+    0x80 -> (:) (toWord7 next) <$> getWord7s
+    _ -> pure [Word7 next]
+
+natToWord7s :: Natural -> [Word7]
+natToWord7s = reverse . go
+  where
+   go n | n <= 0x7F = [Word7 . fromIntegral $ n]
+        | otherwise = (toWord7 . fromIntegral) n : go (shiftR n 7)
 
 putVariableLengthNat :: Natural -> Put
-putVariableLengthNat = undefined
+putVariableLengthNat = putWord7s . natToWord7s
 
-getKeyHash :: Get (KeyHash crypto)
-getKeyHash = undefined
+word7sToNat :: [Word7] -> Natural
+word7sToNat = foldl' f 0
+  where
+  f n (Word7 r) = shiftL n 7 .&. (fromIntegral r)
 
-getScriptHash :: Get (ScriptHash crypto)
-getScriptHash = undefined
+getVariableLengthNat :: Get Natural
+getVariableLengthNat = word7sToNat <$> getWord7s
 
-getByron :: Word8 -> Word8 -> Get (Addr crypto)
-getByron netId header = undefined
 
 
 instance NoUnexpectedThunks (Addr crypto)
@@ -442,17 +496,15 @@ instance
   => ToCBOR (TxOut crypto)
  where
   toCBOR (TxOut addr coin) =
-    encodeListLen (listLen addr + 1)
-      <> toCBORGroup addr
+    encodeListLen 2
+      <> toCBOR addr
       <> toCBOR coin
 
 instance (Crypto crypto) =>
   FromCBOR (TxOut crypto) where
-  fromCBOR = do
-    n <- decodeListLen
-    addr <- fromCBORGroup
+  fromCBOR = decodeRecordNamed "TxOut" (const 2) $ do
+    addr <- fromCBOR
     (b :: Word64) <- fromCBOR
-    matchSize "TxOut" ((fromIntegral . toInteger . listLen) addr + 1) n
     pure $ TxOut addr (Coin $ toInteger b)
 
 instance
@@ -562,74 +614,9 @@ instance (Crypto crypto) =>
 
 instance
   (Typeable crypto, Crypto crypto)
-  => ToCBORGroup (Addr crypto)
+  => ToCBOR (Addr crypto)
  where
-  listLen (Addr _ (StakeRefBase _)) = 3
-  listLen (Addr _ (StakeRefPtr p)) = 2 + listLen p
-  listLen (Addr _ (StakeRefNull)) = 2
-  listLen (AddrBootstrap  _) = 2
-
-  toCBORGroup (Addr (KeyHashObj a) (StakeRefBase (KeyHashObj b))) =
-    toCBOR (0 :: Word8) <> toCBOR a <> toCBOR b
-  toCBORGroup (Addr (KeyHashObj a) (StakeRefBase (ScriptHashObj b))) =
-    toCBOR (1 :: Word8) <> toCBOR a <> toCBOR b
-  toCBORGroup (Addr (ScriptHashObj a) (StakeRefBase (KeyHashObj b))) =
-    toCBOR (2 :: Word8) <> toCBOR a <> toCBOR b
-  toCBORGroup (Addr (ScriptHashObj a) (StakeRefBase (ScriptHashObj b))) =
-    toCBOR (3 :: Word8) <> toCBOR a <> toCBOR b
-  toCBORGroup (Addr (KeyHashObj a) (StakeRefPtr pointer)) =
-    toCBOR (4 :: Word8) <> toCBOR a <> toCBORGroup pointer
-  toCBORGroup (Addr (ScriptHashObj a) (StakeRefPtr pointer)) =
-    toCBOR (5 :: Word8) <> toCBOR a <> toCBORGroup pointer
-  toCBORGroup (Addr (KeyHashObj a) StakeRefNull) =
-    toCBOR (6 :: Word8) <> toCBOR a
-  toCBORGroup (Addr (ScriptHashObj a) StakeRefNull) =
-    toCBOR (7 :: Word8) <> toCBOR a
-  toCBORGroup (AddrBootstrap a) =
-    toCBOR (8 :: Word8) <> toCBOR a
-
-instance (Crypto crypto) =>
-  FromCBORGroup (Addr crypto) where
-  fromCBORGroup = do
-    decodeWord >>= \case
-      0 -> do
-        a <- fromCBOR
-        b <- fromCBOR
-        pure $ Addr (KeyHashObj a) (StakeRefBase (KeyHashObj b))
-      1 -> do
-        a <- fromCBOR
-        b <- fromCBOR
-        pure $ Addr (KeyHashObj a) (StakeRefBase (ScriptHashObj b))
-      2 -> do
-        a <- fromCBOR
-        b <- fromCBOR
-        pure $ Addr (ScriptHashObj a) (StakeRefBase (KeyHashObj b))
-      3 -> do
-        a <- fromCBOR
-        b <- fromCBOR
-        pure $ Addr (ScriptHashObj a) (StakeRefBase (ScriptHashObj b))
-      4 -> do
-        a <- fromCBOR
-        x <- fromCBOR
-        y <- fromCBOR
-        z <- fromCBOR
-        pure $ Addr (KeyHashObj a) (StakeRefPtr (Ptr x y z))
-      5 -> do
-        a <- fromCBOR
-        x <- fromCBOR
-        y <- fromCBOR
-        z <- fromCBOR
-        pure $ Addr (ScriptHashObj a) (StakeRefPtr (Ptr x y z))
-      6 -> do
-        a <- fromCBOR
-        pure $ Addr (KeyHashObj a) StakeRefNull
-      7 -> do
-        a <- fromCBOR
-        pure $ Addr (ScriptHashObj a) StakeRefNull
-      8 -> do
-        a <- fromCBOR
-        pure $ AddrBootstrap (KeyHash a)
-      k -> invalidKey k
+  toCBOR = toCBOR . B.runPut . putAddr
 
 instance ToCBORGroup Ptr where
   toCBORGroup (Ptr sl txIx certIx) =
@@ -637,6 +624,13 @@ instance ToCBORGroup Ptr where
       <> toCBOR (fromInteger (toInteger txIx) :: Word)
       <> toCBOR (fromInteger (toInteger certIx) :: Word)
   listLen _ = 3
+instance Crypto crypto => FromCBOR (Addr crypto) where
+  fromCBOR = do
+    bytes <- fromCBOR
+    case B.runGetOrFail getAddr bytes of
+      Right (_remaining,_offset,value) -> pure value
+      Left (_remaining,_offset,message) ->
+        cborError (DecoderErrorCustom "Addr" $ fromString message)
 
 instance FromCBORGroup Ptr where
   fromCBORGroup = Ptr <$> fromCBOR <*> fromCBOR <*> fromCBOR
