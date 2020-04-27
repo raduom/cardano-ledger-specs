@@ -39,6 +39,7 @@ import           Cardano.Binary (Decoder, DecoderError (..), FromCBOR (fromCBOR)
 import           Cardano.Crypto.Hash
 import           Cardano.Prelude (NoUnexpectedThunks (..), cborError)
 import           Cardano.Slotting.EpochInfo
+import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Trans.Reader (ReaderT)
 import qualified Data.ByteString as BS
 import           Data.Coerce (coerce)
@@ -203,6 +204,8 @@ instance Monad StrictMaybe where
     (>>) = (*>)
 
     return = SJust
+
+instance Fail.MonadFail StrictMaybe where
     fail _ = SNothing
 
 instance ToCBOR a => ToCBOR (StrictMaybe a) where
